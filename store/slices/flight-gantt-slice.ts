@@ -6,7 +6,10 @@ import type { FlightGantt } from '@/domain/entities/flight-gantt';
 export const fetchFlightGantt = createAsyncThunk(
   'flightGantt/fetchByFlightId',
   async (flightId: string) => {
-    return container.getFlightGanttUseCase.execute(flightId);
+    console.log('[GanttSlice] fetchFlightGantt — START | flightId:', flightId);
+    const result = await container.getFlightGanttUseCase.execute(flightId);
+    console.log('[GanttSlice] fetchFlightGantt — SUCCESS | flightId:', flightId, '| tasks:', result?.tasks?.length ?? 0, '| turnaroundId:', result?.turnaroundId);
+    return result;
   },
 );
 
@@ -70,6 +73,7 @@ const flightGanttSlice = createSlice({
   reducers: {
     /** Silent update from SSE stream — does NOT trigger loading state. */
     updateGanttData: (state, action: import('@reduxjs/toolkit').PayloadAction<FlightGantt>) => {
+      console.log('[GanttSlice] updateGanttData (SSE) | tasks:', action.payload?.tasks?.length ?? 0);
       state.data = action.payload;
     },
     /**
@@ -80,8 +84,13 @@ const flightGanttSlice = createSlice({
     optimisticUpdateTask: (state, action: import('@reduxjs/toolkit').PayloadAction<OptimisticTaskPayload>) => {
       if (!state.data) return;
       const { instanceId, startTime, endTime } = action.payload;
+      console.log('[GanttSlice] optimisticUpdateTask | instanceId:', instanceId, '| startTime:', startTime, '| endTime:', endTime);
       const task = state.data.tasks.find((t) => t.instanceId === instanceId);
-      if (!task) return;
+      if (!task) {
+        console.warn('[GanttSlice] optimisticUpdateTask — task NOT FOUND in gantt | instanceId:', instanceId, '| total tasks:', state.data.tasks.length);
+        return;
+      }
+      console.log('[GanttSlice] optimisticUpdateTask — BEFORE patch | taskId:', task.taskId, '| estado:', task.estado, '| inicioReal:', task.inicioReal, '| finReal:', task.finReal);
       if ('startTime' in action.payload) {
         task.inicioReal = startTime ? hhmmToGanttDateTime(startTime) : null;
       }
@@ -99,20 +108,24 @@ const flightGanttSlice = createSlice({
 
       task.duracionReal = diffMinutes(task.inicioReal, task.finReal);
       task.ultimoEvento = task.finReal ?? task.inicioReal ?? task.ultimoEvento;
+      console.log('[GanttSlice] optimisticUpdateTask — AFTER patch | taskId:', task.taskId, '| estado:', task.estado, '| inicioReal:', task.inicioReal, '| finReal:', task.finReal, '| duracionReal:', task.duracionReal);
     },
   },
   extraReducers: (builder) => {
     builder
       .addCase(fetchFlightGantt.pending, (state, action) => {
+        console.log('[GanttSlice] fetchFlightGantt PENDING | flightId:', action.meta.arg);
         state.loading = true;
         state.error = undefined;
         state.flightId = action.meta.arg;
       })
       .addCase(fetchFlightGantt.fulfilled, (state, action) => {
+        console.log('[GanttSlice] fetchFlightGantt FULFILLED | tasks loaded:', action.payload?.tasks?.length ?? 0, '| flightId:', action.meta.arg);
         state.loading = false;
         state.data = action.payload;
       })
       .addCase(fetchFlightGantt.rejected, (state, action) => {
+        console.warn('[GanttSlice] fetchFlightGantt REJECTED | flightId:', action.meta.arg, '| code:', action.error.code, '| message:', action.error.message);
         state.loading = false;
         if (action.error.code === 'GANTT_NOT_FOUND') {
           state.data = null;

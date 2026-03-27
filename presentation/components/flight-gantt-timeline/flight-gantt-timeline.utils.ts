@@ -361,6 +361,8 @@ export const buildTimelineRows = (
   const stdAbsoluteMinute =
     parsedDate && parsedTime ? parsedTime.hours * 60 + parsedTime.minutes : 0;
 
+  console.log('[GanttTimeline] buildTimelineRows | tasks count:', tasks.length, '| stdDate:', stdDate, '| stdTime:', stdTime, '| stdAbsoluteMinute:', stdAbsoluteMinute);
+
   const rows: TimelineTaskRowData[] = [];
   for (const task of tasks) {
     const hasAbsolute = taskHasAbsoluteCalculated(task);
@@ -379,6 +381,17 @@ export const buildTimelineRows = (
       nowTimestamp,
     );
 
+    console.log(
+      '[GanttTimeline] row | taskId:', task.taskId,
+      '| instanceId:', task.instanceId,
+      '| estado:', task.estado,
+      '| inicioReal:', task.inicioReal,
+      '| finReal:', task.finReal,
+      '| hasAbsoluteCalc:', hasAbsolute,
+      '| calculatedRange:', calculatedRange,
+      '| realRange:', realRange,
+    );
+
     rows.push({
       calculatedRange,
       estado: task.estado,
@@ -388,6 +401,7 @@ export const buildTimelineRows = (
     });
   }
 
+  console.log('[GanttTimeline] buildTimelineRows — DONE | rows built:', rows.length);
   return rows;
 };
 
