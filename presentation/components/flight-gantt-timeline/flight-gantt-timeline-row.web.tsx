@@ -274,21 +274,19 @@ export const FlightGanttTimelineRow = memo(
       );
     }, [rowData, isRealInProgress, shimmerGradId, xScale, realBarY, realStartMinute, realEndMinute]);
 
-    // Determinar si hay atraso en inicio o fin.
-    // rowData.isDelayed viene del backend (task.estaRetrasada) y ya contempla
-    // todos los casos — incluyendo cuando el vuelo es de otro día o cuando los
-    // rangos calculados no están disponibles. La lógica local sirve como
-    // complemento para detectar atrasos en tiempo real (barra en progreso).
-    const isCompleted = !!rowData.task.finReal;
-    const isDelayed =
-      rowData.isDelayed ||
-      (isCompleted && (realStartOutOfRange || realEndOutOfRange));
+    // Determinar si hay atraso en inicio o fin basado únicamente en la
+    // comparación local de minutos. Esto garantiza que solo las filas donde
+    // el real supera el estimado reciban el fondo rojo, independientemente
+    // del flag del backend.
+    const isDelayed = realStartOutOfRange || realEndOutOfRange;
 
     const rowStyle: Record<string, string | number> = useMemo(() => ({
       ...styles.row,
-      ...(getRowBackground(index) ?? {}),
+      ...(isDelayed
+        ? { backgroundColor: '#FEF2F2' }
+        : (getRowBackground(index) ?? {})),
       ...(hovered ? { backgroundColor: '#E7E8FD', cursor: 'pointer' } : {}),
-    }), [index, hovered]);
+    }), [index, hovered, isDelayed]);
 
     const handleMouseEnter = useCallback(() => setHovered(true),  []);
     const handleMouseLeave = useCallback(() => setHovered(false), []);
@@ -315,9 +313,6 @@ export const FlightGanttTimelineRow = memo(
             ...styles.taskCell,
             ...styles.cellTime,
             width: START_COLUMN_WIDTH,
-            ...((realStartOutOfRange || rowData.isDelayed) && !realStartEarly && realStart
-              ? { backgroundColor: '#FEF2F2' }
-              : {}),
           }}
         >
           <Text variant="label-sm" style={{ fontWeight: 600, lineHeight: 1.2 }}>
@@ -327,13 +322,13 @@ export const FlightGanttTimelineRow = memo(
             variant="label-xs"
             style={{
               color: realStart
-                ? (realStartOutOfRange || rowData.isDelayed) && !realStartEarly
+                ? realStartOutOfRange && !realStartEarly
                   ? '#C8001E'
                   : '#07605B'
                 : '#b0b0b0',
               lineHeight: 1.2,
               marginTop: 2,
-              fontWeight: (realStartOutOfRange || rowData.isDelayed) && !realStartEarly ? 700 : 400,
+              fontWeight: realStartOutOfRange && !realStartEarly ? 700 : 400,
             }}
           >
             {realStart ?? '--'}
@@ -341,13 +336,7 @@ export const FlightGanttTimelineRow = memo(
         </div>
 
         {/* End column: estimated (fixed) on top, real (live) below */}
-        <div style={{
-          ...styles.taskCell,
-          ...styles.cellTime,
-          ...((realEndOutOfRange || rowData.isDelayed) && realEnd
-            ? { backgroundColor: '#FEF2F2' }
-            : {}),
-        }}>
+        <div style={{ ...styles.taskCell, ...styles.cellTime }}>
           <Text variant="label-sm" style={{ fontWeight: 600, lineHeight: 1.2 }}>
             {calculatedEnd !== null ? formatAbsoluteMinute(calculatedEnd) : '--'}
           </Text>
@@ -355,11 +344,11 @@ export const FlightGanttTimelineRow = memo(
             variant="label-xs"
             style={{
               color: realEnd
-                ? (realEndOutOfRange || rowData.isDelayed) ? '#C8001E' : '#07605B'
+                ? realEndOutOfRange ? '#C8001E' : '#07605B'
                 : '#b0b0b0',
               lineHeight: 1.2,
               marginTop: 2,
-              fontWeight: (realEndOutOfRange || rowData.isDelayed) ? 700 : 400,
+              fontWeight: realEndOutOfRange ? 700 : 400,
             }}
           >
             {realEnd ?? '--'}
