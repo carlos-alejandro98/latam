@@ -594,20 +594,24 @@ export const getExpectedBarColor = (row: TimelineTaskRowData): string => {
 
 /**
  * Resolve color for the real (actual) bar:
- * - Blue  : task is still in progress (finReal is null)
- * - Green : task completed within the calculated planned end
- * - Red   : task completed but exceeded the calculated planned end
+ * - Blue  : task is still in progress (finReal is null) - SIEMPRE azul mientras está en progreso
+ * - Green : task completed within the calculated planned range (inicio y fin dentro del tiempo)
+ * - Red   : task completed but exceeded the calculated planned range (inicio o fin fuera del tiempo)
  */
 export const getRealBarColor = (row: TimelineTaskRowData): string => {
+  // Si está en progreso (no tiene finReal), SIEMPRE es azul
+  if (!row.task.finReal) return REAL_BAR_BLUE;
+
+  // Si está completado, verificar si hay atraso en inicio o fin
   if (row.realRange && row.calculatedRange) {
-    const withinEnd =
-      row.realRange.endMinute <= row.calculatedRange.endMinute + 0.5;
-    if (!withinEnd) {
+    const startDelayed = row.realRange.startMinute > row.calculatedRange.startMinute + 0.5;
+    const endDelayed = row.realRange.endMinute > row.calculatedRange.endMinute + 0.5;
+    
+    // Si el inicio o el fin están atrasados, es rojo
+    if (startDelayed || endDelayed) {
       return REAL_BAR_RED;
     }
   }
-
-  if (!row.task.finReal) return REAL_BAR_BLUE;
 
   return REAL_BAR_GREEN;
 };

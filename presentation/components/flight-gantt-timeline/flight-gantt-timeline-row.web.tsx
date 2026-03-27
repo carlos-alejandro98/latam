@@ -249,8 +249,9 @@ export const FlightGanttTimelineRow = memo(
       );
     }, [rowData, isRealInProgress, shimmerGradId, xScale, realBarY, realStartMinute, realEndMinute]);
 
-    // Determinar si hay atraso en inicio o fin
-    const isDelayed = realStartOutOfRange || realEndOutOfRange;
+    // Determinar si hay atraso en inicio o fin - SOLO cuando la tarea está completada (tiene finReal)
+    const isCompleted = !!rowData.task.finReal;
+    const isDelayed = isCompleted && (realStartOutOfRange || realEndOutOfRange);
 
     const rowStyle: Record<string, string | number> = useMemo(() => ({
       ...styles.row,
