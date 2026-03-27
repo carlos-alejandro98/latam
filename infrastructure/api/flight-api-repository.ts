@@ -96,8 +96,11 @@ function mapTurnaroundToFlightGantt(raw: TurnaroundApiResponse): FlightGantt {
     baseDurationMin:          t.scheduledDurationMin,
     inicioProgramado:         t.scheduledStart,
     finProgramado:            t.scheduledEnd,
-    inicioCalculado:          t.calculatedStart,
-    finCalculado:             t.calculatedEnd,
+    // scheduledStart/scheduledEnd son los tiempos de plan originales — NUNCA cambian.
+    // calculatedStart/calculatedEnd son mutados por el backend al guardar tiempos reales,
+    // por eso usamos scheduled como fuente de verdad para las columnas "estimadas" de la UI.
+    inicioCalculado:          t.scheduledStart,
+    finCalculado:             t.scheduledEnd,
     estado:                   t.status,
     dependencias:             t.dependencies ?? [],
     triggerType:              '',
@@ -194,29 +197,6 @@ export class FlightApiRepository implements FlightRepositoryPort {
         { flightId },
       );
       
-      // LOG A: respuesta RAW del backend — muestra lo que el servicio devuelve
-      // ANTES de cualquier mapeo. La columna "calcStart"/"calcEnd" son los valores
-      // que se muestran como "hora estimada" en la UI. Si esos cambian al recargar,
-      // el problema es del backend (calculatedStart/calculatedEnd mutan con actualStart/End).
-      console.log(`[v0] getFlightGantt RAW | flightId: ${flightId} | turnaroundId: ${raw.turnaroundId} | tasks: ${raw.tasks.length}`);
-      console.table(
-        raw.tasks.map((t) => {
-          const fmt = (dt: GanttDateTime) =>
-            dt ? `${String(dt[3]).padStart(2,'0')}:${String(dt[4]).padStart(2,'0')}` : null;
-          return {
-            taskName:      t.taskName,
-            status:        t.status,
-            calcStart:     fmt(t.calculatedStart),   // <-- hora estimada UI (NO debe cambiar)
-            calcEnd:       fmt(t.calculatedEnd),     // <-- hora estimada UI (NO debe cambiar)
-            schedStart:    fmt(t.scheduledStart),    // <-- hora programada original
-            schedEnd:      fmt(t.scheduledEnd),
-            actualStart:   fmt(t.actualStart),       // <-- hora real ingresada
-            actualEnd:     fmt(t.actualEnd),
-            isDelayed:     t.isDelayed,
-          };
-        }),
-      );
-
       const mapped = mapTurnaroundToFlightGantt(raw);
       return mapped;
     } catch (error) {
