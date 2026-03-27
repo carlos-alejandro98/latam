@@ -194,20 +194,49 @@ export class FlightApiRepository implements FlightRepositoryPort {
         { flightId },
       );
       
-      // Log de todas las tareas con sus campos relevantes para debug
-      console.log(`[FlightApiRepository] Gantt tasks for flight ${flightId}:`, 
-        raw.tasks.map(t => ({
-          taskName: t.taskName,
-          status: t.status,
-          actualStart: t.actualStart,
-          actualEnd: t.actualEnd,
-          isDelayed: t.isDelayed,
+      // Log de respuesta cruda del servicio — muestra exactamente lo que viene del backend
+      // antes de cualquier mapeo. Si status sigue en NOT_STARTED después de completar
+      // la tarea y recargar, el problema es del servicio (no del frontend).
+      console.log(`[FlightApiRepository] getFlightGantt RAW response | flightId: ${flightId} | turnaroundId: ${raw.turnaroundId} | total tasks: ${raw.tasks.length}`);
+      console.table(
+        raw.tasks.map((t) => ({
+          taskName:           t.taskName,
+          instanceId:         t.instanceId,
+          status:             t.status,
+          actualStart:        t.actualStart
+                                ? `${String(t.actualStart[3]).padStart(2,'0')}:${String(t.actualStart[4]).padStart(2,'0')}`
+                                : null,
+          actualEnd:          t.actualEnd
+                                ? `${String(t.actualEnd[3]).padStart(2,'0')}:${String(t.actualEnd[4]).padStart(2,'0')}`
+                                : null,
+          isDelayed:          t.isDelayed,
           shouldBeInProgress: t.shouldBeInProgress,
-          shouldBeCompleted: t.shouldBeCompleted,
-        }))
+          shouldBeCompleted:  t.shouldBeCompleted,
+          progressPercent:    t.progressPercent,
+        })),
       );
       
-      return mapTurnaroundToFlightGantt(raw);
+      const mapped = mapTurnaroundToFlightGantt(raw);
+
+      // Log del resultado DESPUÉS del mapeo — compara con la tabla anterior.
+      // Si en la tabla RAW el status ya es NOT_STARTED, el problema es del servicio.
+      // Si en la tabla RAW el status era correcto pero aquí cambia, el problema es del mapeo.
+      console.log(`[FlightApiRepository] getFlightGantt MAPPED | flightId: ${flightId} | tasks: ${mapped.tasks.length}`);
+      console.table(
+        mapped.tasks.map((t) => ({
+          taskName:    t.taskName,
+          instanceId:  t.instanceId,
+          estado:      t.estado,
+          inicioReal:  t.inicioReal
+                         ? `${String(t.inicioReal[3]).padStart(2,'0')}:${String(t.inicioReal[4]).padStart(2,'0')}`
+                         : null,
+          finReal:     t.finReal
+                         ? `${String(t.finReal[3]).padStart(2,'0')}:${String(t.finReal[4]).padStart(2,'0')}`
+                         : null,
+        })),
+      );
+
+      return mapped;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 404) {
         throw new FlightError(
