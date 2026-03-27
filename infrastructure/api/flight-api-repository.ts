@@ -194,6 +194,19 @@ export class FlightApiRepository implements FlightRepositoryPort {
         { flightId },
       );
       
+      // Log de todas las tareas con sus campos relevantes para debug
+      console.log(`[FlightApiRepository] Gantt tasks for flight ${flightId}:`, 
+        raw.tasks.map(t => ({
+          taskName: t.taskName,
+          status: t.status,
+          actualStart: t.actualStart,
+          actualEnd: t.actualEnd,
+          isDelayed: t.isDelayed,
+          shouldBeInProgress: t.shouldBeInProgress,
+          shouldBeCompleted: t.shouldBeCompleted,
+        }))
+      );
+      
       return mapTurnaroundToFlightGantt(raw);
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 404) {
