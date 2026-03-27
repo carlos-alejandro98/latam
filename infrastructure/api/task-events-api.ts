@@ -11,11 +11,17 @@ export interface TaskEventResponse {
 }
 
 /**
- * The backend stores and interprets timestamps as plain local time with no
- * timezone conversion. Sending "+00:00" tells the backend to treat the time
- * exactly as typed — no offset arithmetic is applied.
+ * Returns the local timezone offset string for the device running the app,
+ * e.g. "-03:00" for Brazil (UTC-3), "+01:00" for Spain (UTC+1), etc.
+ * This ensures timestamps are interpreted correctly regardless of country.
  */
-const NO_OFFSET = '+00:00';
+const localOffsetStr = (): string => {
+  const offsetMin = -new Date().getTimezoneOffset();
+  const sign = offsetMin >= 0 ? '+' : '-';
+  const absH = String(Math.floor(Math.abs(offsetMin) / 60)).padStart(2, '0');
+  const absM = String(Math.abs(offsetMin) % 60).padStart(2, '0');
+  return `${sign}${absH}:${absM}`;
+};
 
 /**
  * Returns the LOCAL date part "YYYY-MM-DD" of a Date object
@@ -73,7 +79,7 @@ const buildIso = (timeHhmm: string, stdIso: string | null): string => {
   // never corrupt the stored value with the current clock.
   const timePart = digits.length >= 4 ? `${hh}:${mm}:00` : `${hh}:${mm}:00`;
 
-  return `${datePart}T${timePart}${NO_OFFSET}`;
+  return `${datePart}T${timePart}${localOffsetStr()}`;
 };
 
 /** Parse a JSON string safely — returns the original string if parsing fails */
