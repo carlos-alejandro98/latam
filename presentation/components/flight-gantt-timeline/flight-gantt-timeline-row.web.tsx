@@ -178,12 +178,7 @@ const renderRangeBar = (
 
 const getRowBackground = (
   index: number,
-  isDelayed: boolean,
 ): Record<string, string | number> | null => {
-  // Fondo rojo claro si el proceso tiene atraso en inicio o fin
-  if (isDelayed) {
-    return { backgroundColor: '#FEF2F2' }; // Rojo muy claro
-  }
   if (index % 2 === 0) {
     return null;
   }
@@ -291,9 +286,9 @@ export const FlightGanttTimelineRow = memo(
 
     const rowStyle: Record<string, string | number> = useMemo(() => ({
       ...styles.row,
-      ...(getRowBackground(index, isDelayed) ?? {}),
+      ...(getRowBackground(index) ?? {}),
       ...(hovered ? { backgroundColor: '#E7E8FD', cursor: 'pointer' } : {}),
-    }), [index, hovered, isDelayed]);
+    }), [index, hovered]);
 
     const handleMouseEnter = useCallback(() => setHovered(true),  []);
     const handleMouseLeave = useCallback(() => setHovered(false), []);
@@ -320,6 +315,9 @@ export const FlightGanttTimelineRow = memo(
             ...styles.taskCell,
             ...styles.cellTime,
             width: START_COLUMN_WIDTH,
+            ...((realStartOutOfRange || rowData.isDelayed) && !realStartEarly && realStart
+              ? { backgroundColor: '#FEF2F2' }
+              : {}),
           }}
         >
           <Text variant="label-sm" style={{ fontWeight: 600, lineHeight: 1.2 }}>
@@ -343,7 +341,13 @@ export const FlightGanttTimelineRow = memo(
         </div>
 
         {/* End column: estimated (fixed) on top, real (live) below */}
-        <div style={{ ...styles.taskCell, ...styles.cellTime }}>
+        <div style={{
+          ...styles.taskCell,
+          ...styles.cellTime,
+          ...((realEndOutOfRange || rowData.isDelayed) && realEnd
+            ? { backgroundColor: '#FEF2F2' }
+            : {}),
+        }}>
           <Text variant="label-sm" style={{ fontWeight: 600, lineHeight: 1.2 }}>
             {calculatedEnd !== null ? formatAbsoluteMinute(calculatedEnd) : '--'}
           </Text>
