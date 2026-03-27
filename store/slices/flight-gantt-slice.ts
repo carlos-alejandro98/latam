@@ -6,9 +6,7 @@ import type { FlightGantt } from '@/domain/entities/flight-gantt';
 export const fetchFlightGantt = createAsyncThunk(
   'flightGantt/fetchByFlightId',
   async (flightId: string) => {
-    console.log('[GanttSlice] fetchFlightGantt — START | flightId:', flightId);
     const result = await container.getFlightGanttUseCase.execute(flightId);
-    console.log('[GanttSlice] fetchFlightGantt — SUCCESS | flightId:', flightId, '| tasks:', result?.tasks?.length ?? 0, '| turnaroundId:', result?.turnaroundId);
     return result;
   },
 );
@@ -73,7 +71,6 @@ const flightGanttSlice = createSlice({
   reducers: {
     /** Silent update from SSE stream — does NOT trigger loading state. */
     updateGanttData: (state, action: import('@reduxjs/toolkit').PayloadAction<FlightGantt>) => {
-      console.log('[GanttSlice] updateGanttData (SSE) | tasks:', action.payload?.tasks?.length ?? 0);
       state.data = action.payload;
     },
     /**
@@ -84,13 +81,8 @@ const flightGanttSlice = createSlice({
     optimisticUpdateTask: (state, action: import('@reduxjs/toolkit').PayloadAction<OptimisticTaskPayload>) => {
       if (!state.data) return;
       const { instanceId, startTime, endTime } = action.payload;
-      console.log('[GanttSlice] optimisticUpdateTask | instanceId:', instanceId, '| startTime:', startTime, '| endTime:', endTime);
       const task = state.data.tasks.find((t) => t.instanceId === instanceId);
-      if (!task) {
-        console.warn('[GanttSlice] optimisticUpdateTask — task NOT FOUND in gantt | instanceId:', instanceId, '| total tasks:', state.data.tasks.length);
-        return;
-      }
-      console.log('[GanttSlice] optimisticUpdateTask — BEFORE patch | taskId:', task.taskId, '| estado:', task.estado, '| inicioReal:', task.inicioReal, '| finReal:', task.finReal);
+      if (!task) return;
       if ('startTime' in action.payload) {
         task.inicioReal = startTime ? hhmmToGanttDateTime(startTime) : null;
       }
@@ -108,24 +100,55 @@ const flightGanttSlice = createSlice({
 
       task.duracionReal = diffMinutes(task.inicioReal, task.finReal);
       task.ultimoEvento = task.finReal ?? task.inicioReal ?? task.ultimoEvento;
-      console.log('[GanttSlice] optimisticUpdateTask — AFTER patch | taskId:', task.taskId, '| estado:', task.estado, '| inicioReal:', task.inicioReal, '| finReal:', task.finReal, '| duracionReal:', task.duracionReal);
+
+      // Recalculate varianzaInicio / varianzaFin / estaRetrasada so the
+      // Gantt row can immediately show the red background without waiting
+      // for a page reload that brings fresh server data.
+      const calcStartAbsMin = task.inicioCalculado
+        ? (task.inicioCalculado[3] % 24) * 60 + task.inicioCalculado[4]
+        : null;
+      const calcEndAbsMin = task.finCalculado
+        ? (task.finCalculado[3] % 24) * 60 + task.finCalculado[4]
+        : null;
+      const realStartAbsMin = task.inicioReal
+        ? (task.inicioReal[3] % 24) * 60 + task.inicioReal[4]
+        : null;
+      const realEndAbsMin = task.finReal
+        ? (task.finReal[3] % 24) * 60 + task.finReal[4]
+        : null;
+
+      task.varianzaInicio =
+        realStartAbsMin !== null && calcStartAbsMin !== null
+          ? realStartAbsMin - calcStartAbsMin
+          : null;
+      task.varianzaFin =
+        realEndAbsMin !== null && calcEndAbsMin !== null
+          ? realEndAbsMin - calcEndAbsMin
+          : null;
+
+      const startLate =
+        realStartAbsMin !== null &&
+        calcStartAbsMin !== null &&
+        realStartAbsMin > calcStartAbsMin + 0.5;
+      const endLate =
+        realEndAbsMin !== null &&
+        calcEndAbsMin !== null &&
+        realEndAbsMin > calcEndAbsMin + 0.5;
+      task.estaRetrasada = startLate || endLate;
     },
   },
   extraReducers: (builder) => {
     builder
       .addCase(fetchFlightGantt.pending, (state, action) => {
-        console.log('[GanttSlice] fetchFlightGantt PENDING | flightId:', action.meta.arg);
         state.loading = true;
         state.error = undefined;
         state.flightId = action.meta.arg;
       })
       .addCase(fetchFlightGantt.fulfilled, (state, action) => {
-        console.log('[GanttSlice] fetchFlightGantt FULFILLED | tasks loaded:', action.payload?.tasks?.length ?? 0, '| flightId:', action.meta.arg);
         state.loading = false;
         state.data = action.payload;
       })
       .addCase(fetchFlightGantt.rejected, (state, action) => {
-        console.warn('[GanttSlice] fetchFlightGantt REJECTED | flightId:', action.meta.arg, '| code:', action.error.code, '| message:', action.error.message);
         state.loading = false;
         if (action.error.code === 'GANTT_NOT_FOUND') {
           state.data = null;

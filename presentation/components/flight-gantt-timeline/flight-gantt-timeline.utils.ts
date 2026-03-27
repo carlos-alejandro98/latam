@@ -361,8 +361,6 @@ export const buildTimelineRows = (
   const stdAbsoluteMinute =
     parsedDate && parsedTime ? parsedTime.hours * 60 + parsedTime.minutes : 0;
 
-  console.log('[GanttTimeline] buildTimelineRows | tasks count:', tasks.length, '| stdDate:', stdDate, '| stdTime:', stdTime, '| stdAbsoluteMinute:', stdAbsoluteMinute);
-
   const rows: TimelineTaskRowData[] = [];
   for (const task of tasks) {
     const hasAbsolute = taskHasAbsoluteCalculated(task);
@@ -389,24 +387,6 @@ export const buildTimelineRows = (
       task,
     });
   }
-
-  console.log('[GanttTimeline] buildTimelineRows — DONE | rows built:', rows.length);
-  console.table(
-    rows.map((r) => ({
-      taskId:            r.task.taskId,
-      instanceId:        r.task.instanceId,
-      nombre:            r.task.taskName,
-      grupo:             r.task.grupoFuncional,
-      estado:            r.estado,
-      retrasada:         r.isDelayed,
-      inicioReal:        r.task.inicioReal ? `${String(r.task.inicioReal[3]).padStart(2,'0')}:${String(r.task.inicioReal[4]).padStart(2,'0')}` : null,
-      finReal:           r.task.finReal    ? `${String(r.task.finReal[3]).padStart(2,'0')}:${String(r.task.finReal[4]).padStart(2,'0')}` : null,
-      calcStart:         r.calculatedRange ? `${String(Math.floor(r.calculatedRange.startMinute / 60)).padStart(2,'0')}:${String(r.calculatedRange.startMinute % 60).padStart(2,'0')}` : null,
-      calcEnd:           r.calculatedRange ? `${String(Math.floor(r.calculatedRange.endMinute / 60)).padStart(2,'0')}:${String(r.calculatedRange.endMinute % 60).padStart(2,'0')}` : null,
-      realStart:         r.realRange ? `${String(Math.floor(r.realRange.startMinute / 60)).padStart(2,'0')}:${String(r.realRange.startMinute % 60).padStart(2,'0')}` : null,
-      realEnd:           r.realRange ? `${String(Math.floor(r.realRange.endMinute / 60)).padStart(2,'0')}:${String(r.realRange.endMinute % 60).padStart(2,'0')}` : null,
-    })),
-  );
 
   return rows;
 };
