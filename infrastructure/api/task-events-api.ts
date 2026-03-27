@@ -31,12 +31,31 @@ const localDatePart = (d: Date): string => {
 };
 
 /**
- * Builds an ISO 8601 timestamp with local UTC offset from an "HH:mm" input.
- * The date is always TODAY (local) — the input only overrides the time portion.
+ * Extracts the local "YYYY-MM-DD" date part from a full ISO string
+ * (e.g. "2026-03-24T16:30:00-03:00" → "2026-03-24").
+ * Returns null if the string is not a recognisable ISO date.
  */
-const buildIso = (timeHhmm: string, _stdIso: string | null): string => {
+const extractDateFromIso = (iso: string): string | null => {
+  // Match the date portion at the very beginning of the ISO string
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(iso);
+  return match?.[1] ?? null;
+};
+
+/**
+ * Builds an ISO 8601 timestamp with local UTC offset from an "HH:mm" input.
+ *
+ * Date resolution priority:
+ *  1. Date extracted from `stdIso` (the flight's STD ISO string) — ensures
+ *     tasks belonging to a flight on a different calendar day use the correct date.
+ *  2. Today's local date — fallback when no flight ISO is available.
+ */
+const buildIso = (timeHhmm: string, stdIso: string | null): string => {
   const now = new Date();
-  const datePart = localDatePart(now);
+
+  // Prefer the date from the flight's STD ISO so we don't accidentally shift
+  // the day when the flight belongs to a date other than today.
+  const datePart =
+    (stdIso ? extractDateFromIso(stdIso) : null) ?? localDatePart(now);
 
   // Parse HH:mm from the input — fall back to current time if missing/invalid
   const parts = timeHhmm.split(':');
