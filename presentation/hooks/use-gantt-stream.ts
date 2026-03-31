@@ -214,16 +214,22 @@ export function useGanttStream(
         }
       });
 
-      es.addEventListener('flight_added', () => {
+      es.addEventListener('flight_added', (event: MessageEvent) => {
         if (!mounted) return;
-        log('Evento flight_added recibido. Manteniendo timer de actividad.');
         resetStaleTimer();
+        const fid = activeFlightIdRef.current;
+        if (!fid) return;
+        log(`Evento 'flight_added' recibido. Datos crudos: ${event.data} | Recargando gantt del vuelo: ${fid}`);
+        reloadGantt(fid);
       });
 
-      es.addEventListener('flight_removed', () => {
+      es.addEventListener('flight_removed', (event: MessageEvent) => {
         if (!mounted) return;
-        log('Evento flight_removed recibido. Manteniendo timer de actividad.');
         resetStaleTimer();
+        const fid = activeFlightIdRef.current;
+        if (!fid) return;
+        log(`Evento 'flight_removed' recibido. Datos crudos: ${event.data} | Recargando gantt del vuelo: ${fid}`);
+        reloadGantt(fid);
       });
 
       es.addEventListener('heartbeat', () => {
