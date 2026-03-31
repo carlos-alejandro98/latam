@@ -37,7 +37,7 @@ export const useFlightInfoPanelController = (
     if (!flight) {
       return null;
     }
-
+    console.log('[v0] viewModel recalculándose — tareas en gantt:', resolvedGantt?.tasks.length ?? 'sin gantt', '| flight.flightId:', flight.flightId);
     return createFlightInfoPanelViewModel(flight, resolvedGantt, nowTimestamp);
   }, [flight, resolvedGantt, nowTimestamp]);
 

@@ -31,7 +31,10 @@ export const useFlightGanttStoreAdapter = () => {
   );
 
   const applyGanttUpdate = useCallback(
-    (data: FlightGantt) => dispatch(updateGanttData(data)),
+    (data: FlightGantt) => {
+      console.log('[v0] applyGanttUpdate llamado — tareas:', data.tasks.length, '| flightId API:', data.flight?.flightId);
+      dispatch(updateGanttData(data));
+    },
     [dispatch],
   );
 

@@ -117,16 +117,22 @@ export function useGanttStream(
      */
     const reloadGantt = (flightId: string) => {
       log(`Recargando datos del gantt para el vuelo: ${flightId}`);
+      console.log('[v0] reloadGantt ejecutándose para flightId:', flightId);
       container.getFlightGanttUseCase
         .execute(flightId)
         .then((data) => {
-          if (!mounted) return;
+          if (!mounted) {
+            console.log('[v0] reloadGantt: componente desmontado, se descarta la respuesta');
+            return;
+          }
+          console.log('[v0] reloadGantt: respuesta recibida — tareas:', data.tasks.length, '| flight.flightId en respuesta:', data.flight?.flightId);
           log(`Gantt actualizado con ${data.tasks.length} tareas para el vuelo: ${flightId}`);
           dispatch(updateGanttData(data));
+          console.log('[v0] reloadGantt: updateGanttData despachado');
         })
         .catch((err: unknown) => {
+          console.log('[v0] reloadGantt: ERROR en la llamada HTTP:', err);
           logError(`Error al recargar el gantt del vuelo ${flightId}:`, err);
-          // Se mantienen los datos existentes en caso de error
         });
     };
 
