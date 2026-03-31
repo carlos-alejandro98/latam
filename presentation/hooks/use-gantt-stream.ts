@@ -2,10 +2,9 @@ import { useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
 
 import { ENV } from '@/config/environment';
-import { container } from '@/dependencyInjection/container';
 import { FlightsHttpClient } from '@/infrastructure/http/flights-http-client';
 import type { AppDispatch } from '@/store';
-import { updateGanttData } from '@/store/slices/flight-gantt-slice';
+import { fetchFlightGantt } from '@/store/slices/flight-gantt-slice';
 
 // Los logs del stream se emiten siempre, independiente de ENV.enableLogs,
 // para que el equipo pueda diagnosticar problemas de conectividad en cualquier entorno.
@@ -97,18 +96,19 @@ export function useGanttStream(
     };
 
     /**
-     * Recarga el gantt del vuelo activo directamente desde el use case,
-     * sin pasar por el thunk fetchFlightGantt para no activar el estado
-     * loading=true y evitar parpadeos o re-renders innecesarios en la UI.
+     * Recarga el gantt del vuelo activo usando el thunk fetchFlightGantt.
+     * Esto garantiza que state.flightId y state.data se actualicen juntos,
+     * lo que es necesario para que la condición resolvedGantt en el controller
+     * evalúe correctamente y dispare el re-render del componente.
+     * El estado loading se activa brevemente pero es aceptable para actualizaciones en vivo.
      */
     const reloadGantt = (flightId: string) => {
       log(`Recargando datos del gantt para el vuelo: ${flightId}`);
-      container.getFlightGanttUseCase
-        .execute(flightId)
+      dispatch(fetchFlightGantt(flightId))
+        .unwrap()
         .then((data) => {
           if (!mounted) return;
           log(`Gantt actualizado con ${data.tasks.length} tareas para el vuelo: ${flightId}`);
-          dispatch(updateGanttData(data));
         })
         .catch((err: unknown) => {
           logError(`Error al recargar el gantt del vuelo ${flightId}:`, err);

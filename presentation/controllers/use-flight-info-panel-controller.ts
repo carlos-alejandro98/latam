@@ -24,8 +24,27 @@ export const useFlightInfoPanelController = (
     flightId: requestedFlightId,
   } = useFlightGanttController(flight?.flightId);
 
-  const resolvedGantt =
-    flight && gantt?.flight?.flightId === flight.flightId ? gantt : null;
+  // Se acepta el gantt si el flightId coincide exactamente, o si el flightId
+  // del gantt está contenido en el flightId del vuelo (para cubrir formatos compuestos
+  // como "LA3228-BEL-2026-03-31" vs "LA3228-BEL").
+  const ganttFlightId = gantt?.flight?.flightId;
+  const flightIdMatch =
+    ganttFlightId === flight?.flightId ||
+    (ganttFlightId != null &&
+      flight?.flightId != null &&
+      (flight.flightId.startsWith(ganttFlightId) ||
+        ganttFlightId.startsWith(flight.flightId)));
+
+  const resolvedGantt = flight && ganttFlightId && flightIdMatch ? gantt : null;
+
+  console.log(
+    '[InfoPanelController] flight.flightId:', flight?.flightId,
+    '| gantt.flight.flightId:', ganttFlightId,
+    '| idMatch:', flightIdMatch,
+    '| resolvedGantt:', resolvedGantt ? `${resolvedGantt.tasks.length} tareas` : 'null',
+    '| loading:', loading,
+  );
+
   const shouldUseRequestState =
     Boolean(flight) && requestedFlightId === flight?.flightId;
 
