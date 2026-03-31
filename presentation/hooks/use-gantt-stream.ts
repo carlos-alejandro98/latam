@@ -215,6 +215,19 @@ export function useGanttStream(
       es = new EventSource(finalUrl);
       resetStaleTimer();
 
+      // Listener genérico: captura TODOS los eventos SSE sin importar su nombre.
+      // Esto es necesario porque el EventSource de los navegadores solo dispara
+      // addEventListener('nombre') si el servidor envía exactamente "event: nombre".
+      // Con el listener de 'message' atrapamos cualquier evento que use "data:" sin "event:".
+      es.addEventListener('message', (event: MessageEvent) => {
+        if (!mounted) return;
+        resetStaleTimer();
+        const fid = activeFlightIdRef.current;
+        log(`Evento 'message' recibido. type: ${event.type} | data: ${String(event.data).slice(0, 120)}`);
+        if (!fid) return;
+        scheduleReload(fid, 'message');
+      });
+
       es.addEventListener('connected', () => {
         if (!mounted) return;
         retryCount = 0;
@@ -224,55 +237,19 @@ export function useGanttStream(
         if (fid) reloadGantt(fid);
       });
 
-      es.addEventListener('flight_updated', (event: MessageEvent) => {
+      // Listeners nombrados — se mantienen para los servidores que sí envían "event: flight_added", etc.
+      const handleNamedEvent = (event: MessageEvent) => {
         if (!mounted) return;
         resetStaleTimer();
         const fid = activeFlightIdRef.current;
         if (!fid) return;
+        log(`Evento nombrado '${event.type}' recibido. data: ${String(event.data).slice(0, 120)}`);
+        scheduleReload(fid, event.type);
+      };
 
-        const eventFlightId = extractFlightId(event.data as string);
-        log(`Evento 'flight_updated'. flightId evento: ${eventFlightId ?? 'sin id'} | activo: ${fid}`);
-
-        // Solo recargar si el evento es del vuelo activo, o si el servidor no envió ID
-        if (eventFlightId === undefined || eventFlightId === fid) {
-          scheduleReload(fid, 'flight_updated');
-        } else {
-          log(`Evento ignorado — pertenece al vuelo ${eventFlightId}, no al activo ${fid}.`);
-        }
-      });
-
-      es.addEventListener('flight_added', (event: MessageEvent) => {
-        if (!mounted) return;
-        resetStaleTimer();
-        const fid = activeFlightIdRef.current;
-        if (!fid) return;
-
-        const eventFlightId = extractFlightId(event.data as string);
-        log(`Evento 'flight_added'. flightId evento: ${eventFlightId ?? 'sin id'} | activo: ${fid}`);
-
-        // Solo recargar si el evento es del vuelo activo, o si el servidor no envió ID
-        if (eventFlightId === undefined || eventFlightId === fid) {
-          scheduleReload(fid, 'flight_added');
-        } else {
-          log(`Evento ignorado — pertenece al vuelo ${eventFlightId}, no al activo ${fid}.`);
-        }
-      });
-
-      es.addEventListener('flight_removed', (event: MessageEvent) => {
-        if (!mounted) return;
-        resetStaleTimer();
-        const fid = activeFlightIdRef.current;
-        if (!fid) return;
-
-        const eventFlightId = extractFlightId(event.data as string);
-        log(`Evento 'flight_removed'. flightId evento: ${eventFlightId ?? 'sin id'} | activo: ${fid}`);
-
-        if (eventFlightId === undefined || eventFlightId === fid) {
-          scheduleReload(fid, 'flight_removed');
-        } else {
-          log(`Evento ignorado — pertenece al vuelo ${eventFlightId}, no al activo ${fid}.`);
-        }
-      });
+      es.addEventListener('flight_updated', handleNamedEvent);
+      es.addEventListener('flight_added', handleNamedEvent);
+      es.addEventListener('flight_removed', handleNamedEvent);
 
       es.addEventListener('heartbeat', () => {
         if (!mounted) return;
