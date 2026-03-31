@@ -37,14 +37,6 @@ export const useFlightInfoPanelController = (
 
   const resolvedGantt = flight && ganttFlightId && flightIdMatch ? gantt : null;
 
-  console.log(
-    '[InfoPanelController] flight.flightId:', flight?.flightId,
-    '| gantt.flight.flightId:', ganttFlightId,
-    '| idMatch:', flightIdMatch,
-    '| resolvedGantt:', resolvedGantt ? `${resolvedGantt.tasks.length} tareas` : 'null',
-    '| loading:', loading,
-  );
-
   const shouldUseRequestState =
     Boolean(flight) && requestedFlightId === flight?.flightId;
 

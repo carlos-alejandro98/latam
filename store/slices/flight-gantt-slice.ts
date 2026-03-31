@@ -91,6 +91,11 @@ const flightGanttSlice = createSlice({
       action: import('@reduxjs/toolkit').PayloadAction<FlightGantt>,
     ) => {
       state.data = action.payload;
+      // También actualiza flightId para que resolvedGantt en el controller
+      // pase la condición de igualdad y dispare el re-render del componente.
+      if (action.payload.flight?.flightId) {
+        state.flightId = action.payload.flight.flightId;
+      }
     },
     /**
      * Optimistically patches a single task in the current gantt so the UI
