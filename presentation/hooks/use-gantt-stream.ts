@@ -263,9 +263,9 @@ export function useGanttStream(
       es.addEventListener('heartbeat', (event: MessageEvent) => {
         if (!mounted) return;
         resetStaleTimer();
-        const fid = activeFlightIdRef.current;
-        log(`♡ Heartbeat recibido — data: ${String(event.data).slice(0, 80)}`);
-        if (fid) scheduleReload(fid, 'heartbeat');
+        log(`♡ Heartbeat recibido — conexión activa. data: ${String(event.data).slice(0, 80)}`);
+        // El heartbeat solo mantiene la conexión activa — no recarga el gantt.
+        // Los cambios reales llegan por los eventos flight_added / flight_updated / message.
       });
 
       es.addEventListener('error', (event) => {

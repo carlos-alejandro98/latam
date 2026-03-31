@@ -174,6 +174,9 @@ const flightGanttSlice = createSlice({
       .addCase(fetchFlightGantt.fulfilled, (state, action) => {
         state.loading = false;
         state.data = action.payload;
+        if (action.payload.flight?.flightId) {
+          state.flightId = action.payload.flight.flightId;
+        }
       })
       .addCase(fetchFlightGantt.rejected, (state, action) => {
         if (action.meta.aborted) {
