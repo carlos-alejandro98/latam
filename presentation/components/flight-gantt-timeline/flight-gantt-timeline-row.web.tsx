@@ -404,7 +404,12 @@ export const FlightGanttTimelineRow = memo(
       calculatedStart !== null &&
       realStartMinute > calculatedStart + 0.5;
     const realStartOutOfRange = realStartLate;
+    // Only flag end as out-of-range when the task is actually finished (finReal set).
+    // For in-progress tasks realEndMinute equals nowTimestamp and grows every second,
+    // which would spuriously trigger the red highlight before the task completes.
+    const taskIsFinished = !!rowData.task.finReal;
     const realEndOutOfRange =
+      taskIsFinished &&
       realEndMinute !== null &&
       calculatedEnd !== null &&
       realEndMinute > calculatedEnd + 0.5;

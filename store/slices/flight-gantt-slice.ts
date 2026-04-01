@@ -37,16 +37,63 @@ interface OptimisticTaskPayload {
   endTime?: string | null;
 }
 
-/** Converts "HH:mm" into a GanttDateTime tuple [year,month,day,hour,minute] using today's date. */
+/**
+ * Converts "HH:mm" into a GanttDateTime tuple [year,month,day,hour,minute].
+ *
+ * The date is derived from the task's planned/calculated dates so that times
+ * which cross midnight (e.g. arrival 23:xx → departure 02:xx next day) land
+ * on the correct calendar day.  Fallback is today's local date.
+ *
+ * Strategy:
+ * 1. Extract a reference date from the task (programado or calculado).
+ * 2. Build candidate dates: reference-day-1, reference-day, reference-day+1.
+ * 3. Pick the candidate whose HH:mm is closest to the reference time.
+ */
 const hhmmToGanttDateTime = (
   hhmm: string,
+  task?: FlightGantt['tasks'][0],
 ): FlightGantt['tasks'][0]['inicioReal'] => {
   const [h, m] = hhmm.split(':').map(Number);
-  const now = new Date();
+  if (!Number.isFinite(h) || !Number.isFinite(m)) {
+    const now = new Date();
+    return [now.getFullYear(), now.getMonth() + 1, now.getDate(), h, m] as unknown as FlightGantt['tasks'][0]['inicioReal'];
+  }
+
+  // Try to find a reference date from the task's programado/calculado fields.
+  const refTuple =
+    task?.inicioProgramado ??
+    task?.finProgramado ??
+    task?.inicioCalculado ??
+    task?.finCalculado ??
+    task?.inicioReal ??
+    task?.finReal;
+
+  const refDate =
+    refTuple && refTuple.length >= 3
+      ? new Date(refTuple[0], refTuple[1] - 1, refTuple[2])
+      : new Date();
+
+  // Build three candidate dates centered on the reference day
+  const candidates: Date[] = [-1, 0, 1].map((offset) => {
+    const d = new Date(refDate);
+    d.setDate(d.getDate() + offset);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m, 0, 0);
+  });
+
+  // Reference timestamp for proximity comparison
+  const refTs = refDate.getTime() + (h * 60 + m) * 60000;
+
+  // Pick the candidate closest in absolute time to the reference
+  const best = candidates.reduce<Date>((prev, curr) =>
+    Math.abs(curr.getTime() - refTs) < Math.abs(prev.getTime() - refTs)
+      ? curr
+      : prev,
+  );
+
   return [
-    now.getFullYear(),
-    now.getMonth() + 1,
-    now.getDate(),
+    best.getFullYear(),
+    best.getMonth() + 1,
+    best.getDate(),
     h,
     m,
   ] as unknown as FlightGantt['tasks'][0]['inicioReal'];
@@ -106,10 +153,10 @@ const flightGanttSlice = createSlice({
       const task = state.data.tasks.find((t) => t.instanceId === instanceId);
       if (!task) return;
       if ('startTime' in action.payload) {
-        task.inicioReal = startTime ? hhmmToGanttDateTime(startTime) : null;
+        task.inicioReal = startTime ? hhmmToGanttDateTime(startTime, task) : null;
       }
       if ('endTime' in action.payload) {
-        task.finReal = endTime ? hhmmToGanttDateTime(endTime) : null;
+        task.finReal = endTime ? hhmmToGanttDateTime(endTime, task) : null;
       }
 
       if (task.finReal) {

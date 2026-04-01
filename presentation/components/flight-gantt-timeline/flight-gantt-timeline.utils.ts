@@ -803,16 +803,9 @@ export const getExpectedBarColor = (row: TimelineTaskRowData): string => {
 
 export const getRealBarColor = (row: TimelineTaskRowData): string => {
   if (!row.task.finReal) {
-    // In-progress: check if we have already exceeded the planned end time.
-    // If nowTimestamp (realRange.endMinute) is past calculatedRange.endMinute
-    // the bar turns red to warn the operator, otherwise it stays blue.
-    if (row.realRange && row.calculatedRange) {
-      const exceededEnd =
-        row.realRange.endMinute > row.calculatedRange.endMinute + 0.5;
-      if (exceededEnd) {
-        return REAL_BAR_RED;
-      }
-    }
+    // Task is in progress (no finReal yet) — always blue.
+    // The bar width grows each second via nowTimestamp; we don't pre-emptively
+    // colour it red because the operator may still finish on time.
     return REAL_BAR_BLUE;
   }
 
