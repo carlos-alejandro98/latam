@@ -10,6 +10,8 @@ export const fetchFlightGantt = createAsyncThunk(
   },
 );
 
+const PREFIX = '[GanttSlice]';
+const log = (...args: unknown[]) => console.log(PREFIX, ...args);
 export const refreshTurnaroundMetrics = createAsyncThunk(
   'flightGantt/refreshTurnaroundMetrics',
   async (turnaroundId: string) => {
@@ -170,29 +172,47 @@ const flightGanttSlice = createSlice({
         state.loading = true;
         state.error = undefined;
         state.flightId = action.meta.arg;
+         log(`⏳ PENDING — flightId: "${action.meta.arg}" | data en store antes: ${state.data ? `${state.data.tasks.length} tareas` : 'null'}`);
       })
       .addCase(fetchFlightGantt.fulfilled, (state, action) => {
         state.loading = false;
-        state.data = action.payload;
+        const incoming = action.payload;
+        const sameFlightAsCurrent =
+          state.data?.flight?.flightId &&
+          incoming.flight?.flightId &&
+          state.data.flight.flightId === incoming.flight.flightId;
+        const hasExistingTasks = (state.data?.tasks.length ?? 0) > 0;
+        const incomingIsEmpty = incoming.tasks.length === 0;
+
+        if (sameFlightAsCurrent && hasExistingTasks && incomingIsEmpty) {
+          log(
+            `⚠️  FULFILLED vacío ignorado para vuelo "${incoming.flight?.flightId}" — se conservan ${state.data?.tasks.length ?? 0} tareas previas`,
+          );
+        } else {
+          state.data = incoming;
+        }
         if (action.payload.flight?.flightId) {
           state.flightId = action.payload.flight.flightId;
         }
+         log(`✅ FULFILLED — flightId: "${action.meta.arg}" | flightId en respuesta: "${action.payload.flight?.flightId ?? 'N/A'}" | tareas recibidas: ${action.payload.tasks.length}`);
       })
       .addCase(fetchFlightGantt.rejected, (state, action) => {
         if (action.meta.aborted) {
+           // BUG FIX: resetear loading para evitar que quede en true indefinidamente
+           state.loading = false;
+           log(`⚠️  ABORTED — flightId: "${action.meta.arg}" (loading reseteado a false)`);
           return;
         }
         state.loading = false;
-        // Always stamp the flightId so shouldUseRequestState stays correct
-        // for the next flight — otherwise it remains undefined and the loading
-        // / error state is never exposed to the UI.
         state.flightId = action.meta.arg;
         if (action.error.code === 'GANTT_NOT_FOUND') {
           state.data = null;
           state.error = undefined;
+           log(`⚠️  REJECTED (404 GANTT_NOT_FOUND) — flightId: "${action.meta.arg}"`);
           return;
         }
         state.error = action.error.message;
+         log(`❌ REJECTED — flightId: "${action.meta.arg}" | error: ${action.error.message ?? 'desconocido'}`);
       });
   },
 });

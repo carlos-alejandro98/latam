@@ -1,5 +1,5 @@
 import { CloseOutlined } from '@hangar/react-icons/core/interaction';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Platform,
   Pressable,
@@ -53,8 +53,9 @@ import {
   updateTaskTimes,
 } from '@/infrastructure/api/task-events-api';
 import { useDispatch } from 'react-redux';
+import { useSelector } from 'react-redux';
 import { addSessionEvent } from '@/store/slices/session-events-slice';
-import type { AppDispatch } from '@/store';
+import type { AppDispatch, RootState } from '@/store';
 import { useTheme } from 'styled-components';
 
 const TABLET_MAX_WIDTH = 1440;
@@ -84,6 +85,31 @@ export const HomeScreen = () => {
     { autoLoad: false },
   );
   const dispatch = useDispatch<AppDispatch>();
+
+    // ── Diagnóstico del flujo gantt ──────────────────────────────────────────
+    const ganttStoreData = useSelector((state: RootState) => state.flightGantt);
+    const prevFlightIdRef = useRef<string | null | undefined>(null);
+    useEffect(() => {
+      const fid = selectedFlight?.flightId ?? null;
+      if (prevFlightIdRef.current !== fid) {
+        console.log(
+          `[HomeScreen] ✈️  selectedFlight cambió: "${prevFlightIdRef.current ?? 'null'}" → "${fid ?? 'null'}"` +
+          ` | vuelos cargados: ${flights.length}`,
+        );
+        prevFlightIdRef.current = fid;
+      }
+    }, [selectedFlight, flights.length]);
+
+    useEffect(() => {
+      console.log(
+        `[HomeScreen] 🗄️  Estado store gantt — flightId: "${ganttStoreData.flightId ?? 'undefined'}" | ` +
+        `loading: ${ganttStoreData.loading} | ` +
+        `data: ${ganttStoreData.data ? `${ganttStoreData.data.tasks.length} tareas` : 'null'} | ` +
+        `error: ${ganttStoreData.error ?? 'ninguno'}`,
+      );
+    }, [ganttStoreData]);
+    // ─────────────────────────────────────────────────────────────────────────
+
   const [selectedProcess, setSelectedProcess] =
     useState<SelectedProcess | null>(null);
   const commentsDrawer = useCommentsDrawerController(

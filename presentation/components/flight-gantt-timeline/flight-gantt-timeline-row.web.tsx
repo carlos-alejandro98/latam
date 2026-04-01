@@ -175,13 +175,15 @@ const renderPointMinuteLabel = (
     return null;
   }
 
+  const pointX = Math.round(xScale(minute));
+
   return (
     <text
       key={`${key}-minute-label`}
       x={
         side === 'left'
-          ? xScale(minute) - HITO_LABEL_POINT_OFFSET
-          : xScale(minute) + HITO_LABEL_POINT_OFFSET
+          ? pointX - HITO_LABEL_POINT_OFFSET
+          : pointX + HITO_LABEL_POINT_OFFSET
       }
       y={y}
       fill={BAR_EDGE_LABEL_COLOR}
@@ -251,7 +253,8 @@ const renderHitoMarker = (
   xScale: (value: number) => number,
   tint: 'gray' | 'original' | 'red' | 'green',
 ): ReactNode => {
-  const cx = xScale(minute);
+  // Snap the milestone marker to a whole pixel so it stays centered on the time grid.
+  const cx = Math.round(xScale(minute));
   const topY = (ROW_HEIGHT - HITO_SIZE) / 2;
   const bottomY = topY + HITO_SIZE;
   const circleR = 5.375;
@@ -276,6 +279,7 @@ const renderHitoMarker = (
         x2={cx}
         y2={lineTopEnd}
         stroke={color}
+        shapeRendering="crispEdges"
         strokeWidth={2}
       />
       <circle
@@ -292,6 +296,7 @@ const renderHitoMarker = (
         x2={cx}
         y2={bottomY}
         stroke={color}
+        shapeRendering="crispEdges"
         strokeWidth={2}
       />
     </g>

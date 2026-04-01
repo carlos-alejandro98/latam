@@ -181,6 +181,31 @@ function mapTurnaroundToFlightGantt(raw: TurnaroundApiResponse): FlightGantt {
 }
 
 export class FlightApiRepository implements FlightRepositoryPort {
+  private waitWithAbort(ms: number, signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) {
+      return Promise.reject(new DOMException('Aborted', 'AbortError'));
+    }
+
+    return new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        cleanup();
+        resolve();
+      }, ms);
+
+      const onAbort = () => {
+        clearTimeout(timer);
+        cleanup();
+        reject(new DOMException('Aborted', 'AbortError'));
+      };
+
+      const cleanup = () => {
+        signal?.removeEventListener('abort', onAbort);
+      };
+
+      signal?.addEventListener('abort', onAbort);
+    });
+  }
+
   /**
    * Obtiene los vuelos activos para un rango de fechas.
    * Si no se proporcionan fechas, usa un rango por defecto de 3 días antes y después de hoy.
@@ -212,22 +237,63 @@ export class FlightApiRepository implements FlightRepositoryPort {
     signal?: AbortSignal,
   ): Promise<FlightGantt> {
     try {
-      const raw = await flightsHttpGet<TurnaroundApiResponse>(
-        '/api/v1/turnarounds/flight/gantt',
-        { flightId },
-        signal,
-      );
+      const maxAttempts = 4;
+      const retryDelayMs = 750;
+      let attempt = 0;
+      let raw: TurnaroundApiResponse | null = null;
 
-      const mapped = mapTurnaroundToFlightGantt(raw);
-      return mapped;
+      while (attempt < maxAttempts) {
+        attempt += 1;
+        raw = await flightsHttpGet<TurnaroundApiResponse>(
+          '/api/v1/turnarounds/flight/gantt',
+          { flightId },
+          signal,
+        );
+
+        const tasksCount = raw.tasks?.length ?? 0;
+        const shouldRetryEmptyStartedGantt =
+          raw.ganttStarted && tasksCount === 0 && attempt < maxAttempts;
+
+        if (!shouldRetryEmptyStartedGantt) {
+          break;
+        }
+
+        console.warn(
+          `[FlightAPI] ⏱️ Intento ${attempt}/${maxAttempts}: ganttStarted=true pero tasks=0 para flightId: "${flightId}". Reintentando en ${retryDelayMs}ms...`,
+        );
+        await this.waitWithAbort(retryDelayMs, signal);
+      }
+
+      if (!raw) {
+        throw new Error(`No se obtuvo respuesta de gantt para flightId: ${flightId}`);
+      }
+
+       console.log(
+         `[FlightAPI] ✅ GET /gantt — flightId: "${flightId}" | turnaroundId: "${raw.turnaroundId}" | ganttStarted: ${raw.ganttStarted} | tasks recibidas del backend: ${raw.tasks?.length ?? 'undefined/null (¡PROBLEMA!)'}`,
+       );
+
+       if (!raw.tasks || raw.tasks.length === 0) {
+         console.warn(
+           `[FlightAPI] ⚠️  El backend devolvió tasks VACÍO o null para flightId: "${flightId}". Verifica el endpoint /api/v1/turnarounds/flight/gantt en el BACKEND.`,
+           { turnaroundId: raw.turnaroundId, ganttStarted: raw.ganttStarted, status: raw.status },
+         );
+       }
+
+       const mapped = mapTurnaroundToFlightGantt(raw);
+       console.log(
+         `[FlightAPI] 🗺️  Mapeo completado — tareas mapeadas: ${mapped.tasks.length} | flightId en respuesta: "${mapped.flight?.flightId}"`,
+       );
+       return mapped;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 404) {
+         console.warn(`[FlightAPI] ⚠️  404 para flightId: "${flightId}" — no hay turnaround gantt en el backend.`);
         throw new FlightError(
           `No turnaround gantt found for flight ${flightId}`,
           'GANTT_NOT_FOUND',
         );
       }
 
+       console.error(`[FlightAPI] ❌ Error al obtener gantt para flightId: "${flightId}"`, error);
       throw error;
     }
   }

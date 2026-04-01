@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useEffect } from 'react';
 
 import type { Flight } from '@/domain/entities/flight';
 import { useMinuteTimestamp } from '@/presentation/hooks/use-minute-timestamp';
@@ -33,10 +34,26 @@ export const useFlightInfoPanelController = (
   const shouldUseRequestState =
     Boolean(flight) && requestedFlightId === flight?.flightId;
 
+  // Diagnóstico: loguear cada vez que cambia el estado del gantt en este controller
+  useEffect(() => {
+    if (!flight) return;
+    console.log(
+      `[InfoPanelCtrl] 📊 Estado gantt para flightId: "${flight.flightId}" | ` +
+      `loading: ${loading} | error: ${error ?? 'ninguno'} | ` +
+      `requestedFlightId: "${requestedFlightId ?? 'undefined'}" | ` +
+      `gantt en store: ${gantt ? `${gantt.tasks.length} tareas` : 'null'} | ` +
+      `shouldUseRequestState: ${shouldUseRequestState}`,
+    );
+  }, [flight, loading, error, requestedFlightId, gantt, shouldUseRequestState]);
+
   const viewModel = useMemo((): FlightInfoPanelViewModel | null => {
     if (!flight) {
       return null;
     }
+   console.log(
+     `[InfoPanelCtrl] 🔧 Recalculando viewModel — flightId: "${flight.flightId}" | ` +
+     `resolvedGantt tasks: ${resolvedGantt?.tasks.length ?? 'null'}`,
+   );
     return createFlightInfoPanelViewModel(flight, resolvedGantt, nowTimestamp);
   }, [flight, resolvedGantt, nowTimestamp]);
 

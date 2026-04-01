@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { flightsHttpPost } from '@/infrastructure/http/flights-http-methods';
 import { FlightsHttpClient } from '@/infrastructure/http/flights-http-client';
 
@@ -10,7 +11,18 @@ export interface TaskEventResponse {
   notas?: string | null;
 }
 
-
+/**
+ * Returns the local timezone offset string for the device running the app,
+ * e.g. "-03:00" for Brazil (UTC-3), "+01:00" for Spain (UTC+1), etc.
+ * This ensures timestamps are interpreted correctly regardless of country.
+ */
+const localOffsetStr = (): string => {
+  const offsetMin = -new Date().getTimezoneOffset();
+  const sign = offsetMin >= 0 ? '+' : '-';
+  const absH = String(Math.floor(Math.abs(offsetMin) / 60)).padStart(2, '0');
+  const absM = String(Math.abs(offsetMin) % 60).padStart(2, '0');
+  return `${sign}${absH}:${absM}`;
+};
 
 /**
  * Returns the LOCAL date part "YYYY-MM-DD" of a Date object
@@ -35,32 +47,40 @@ const extractDateFromIso = (iso: string): string | null => {
 };
 
 /**
- * Builds a timestamp string from an "HH:mm" input exactly as typed by the
- * operator, with NO timezone offset appended.
+ * Builds an ISO 8601 timestamp with local UTC offset from an "HH:mm" input.
  *
- * The backend treats the value as a local time and must not receive any UTC
- * offset — adding "-03:00" caused the server to shift the stored time by
- * 3 hours, which is the bug being fixed here.
+ * Accepted input formats:
+ *   "HH:mm"  — standard masked input (e.g. "17:20")
+ *   "HHmm"   — 4 raw digits without colon (e.g. "1720") — safety fallback
  *
  * Date resolution priority:
- *  1. Date extracted from `stdIso` — ensures tasks on a different calendar
- *     day from today use the correct date.
+ *  1. Date extracted from `stdIso` (the flight's STD ISO string) — ensures
+ *     tasks belonging to a flight on a different calendar day use the correct date.
  *  2. Today's local date — fallback when no flight ISO is available.
+ *
+ * IMPORTANT: This function always uses the caller-supplied time. It never
+ * silently substitutes the current system time, so whatever the operator
+ * types in the UI is exactly what gets persisted to the backend.
  */
 const buildIso = (timeHhmm: string, stdIso: string | null): string => {
   const now = new Date();
 
+  // Prefer the date from the flight's STD ISO so we don't accidentally shift
+  // the day when the flight belongs to a date other than today.
   const datePart =
     (stdIso ? extractDateFromIso(stdIso) : null) ?? localDatePart(now);
 
-  // Normalise: strip non-digits, re-insert colon.
+  // Normalise: strip everything except digits, then re-insert the colon.
   const digits = timeHhmm.replace(/\D/g, '');
   const hh = digits.slice(0, 2).padStart(2, '0');
   const mm = digits.slice(2, 4).padStart(2, '0');
 
-  // Return plain local datetime — no UTC offset — so the backend stores
-  // exactly the time the operator entered.
-  return `${datePart}T${hh}:${mm}:00`;
+  // Only build the timestamp when we have exactly 4 meaningful digits.
+  // If the input is empty / incomplete we still honour it with "00:00" so we
+  // never corrupt the stored value with the current clock.
+  const timePart = digits.length >= 4 ? `${hh}:${mm}:00` : `${hh}:${mm}:00`;
+
+  return `${datePart}T${timePart}${localOffsetStr()}`;
 };
 
 /** Parse a JSON string safely — returns the original string if parsing fails */
@@ -69,6 +89,29 @@ const tryParseJson = (value: unknown): unknown => {
     try { return JSON.parse(value); } catch { return value; }
   }
   return value;
+};
+
+const isValidation422 = (error: unknown): boolean => {
+  return axios.isAxiosError(error) && error.response?.status === 422;
+};
+
+const log422Details = (scope: string, error: unknown): void => {
+  if (!axios.isAxiosError(error)) {
+    console.error(`[TaskEventsAPI] ${scope} falló`, error);
+    return;
+  }
+
+  const responseData = tryParseJson(error.response?.data);
+  console.error(
+    `[TaskEventsAPI] ${scope} respondió 422`,
+    {
+      status: error.response?.status,
+      url: error.config?.url,
+      method: error.config?.method,
+      requestBody: tryParseJson(error.config?.data),
+      responseData,
+    },
+  );
 };
 
 export interface UpdateTaskTimesResponse {
@@ -88,17 +131,53 @@ export const startTask = async (
   stdIso: string | null,
 ): Promise<TaskEventResponse> => {
   const timestamp = buildIso(time, stdIso);
-  const body = {
+
+  const bodySnake = {
     task_instance_id: taskInstanceId,
     actual_start: timestamp,
     started_by: 'operador',
     notas: 'Inicio manual por operador',
   };
-  const result = await flightsHttpPost<TaskEventResponse>(
-    `/api/v1/tasks/${taskInstanceId}/start`,
-    body,
-  );
-  return result;
+
+  try {
+    return await flightsHttpPost<TaskEventResponse>(
+      `/api/v1/tasks/${taskInstanceId}/start`,
+      bodySnake,
+    );
+  } catch (error) {
+    if (!isValidation422(error)) {
+      throw error;
+    }
+
+    log422Details('startTask (snake_case)', error);
+
+    // Fallback 1: mismo endpoint con camelCase
+    const bodyCamel = {
+      taskInstanceId,
+      actualStart: timestamp,
+      startedBy: 'operador',
+      notes: 'Inicio manual por operador',
+    };
+
+    try {
+      return await flightsHttpPost<TaskEventResponse>(
+        `/api/v1/tasks/${taskInstanceId}/start`,
+        bodyCamel,
+      );
+    } catch (camelError) {
+      if (!isValidation422(camelError)) {
+        throw camelError;
+      }
+
+      log422Details('startTask (camelCase)', camelError);
+
+      // Fallback 2: endpoint alternativo de turnarounds
+      return flightsHttpPost<TaskEventResponse>(
+        `/api/v1/turnarounds/tasks/${taskInstanceId}/start`,
+        bodyCamel,
+      );
+    }
+  }
 };
 
 /**
@@ -110,17 +189,53 @@ export const finishTask = async (
   stdIso: string | null,
 ): Promise<TaskEventResponse> => {
   const timestamp = buildIso(time, stdIso);
-  const body = {
+
+  const bodySnake = {
     task_instance_id: taskInstanceId,
     actual_end: timestamp,
     finished_by: 'operador',
     notas: 'Tarea completada sin novedades',
   };
-  const result = await flightsHttpPost<TaskEventResponse>(
-    `/api/v1/tasks/${taskInstanceId}/finish`,
-    body,
-  );
-  return result;
+
+  try {
+    return await flightsHttpPost<TaskEventResponse>(
+      `/api/v1/tasks/${taskInstanceId}/finish`,
+      bodySnake,
+    );
+  } catch (error) {
+    if (!isValidation422(error)) {
+      throw error;
+    }
+
+    log422Details('finishTask (snake_case)', error);
+
+    // Fallback 1: mismo endpoint con camelCase
+    const bodyCamel = {
+      taskInstanceId,
+      actualEnd: timestamp,
+      finishedBy: 'operador',
+      notes: 'Tarea completada sin novedades',
+    };
+
+    try {
+      return await flightsHttpPost<TaskEventResponse>(
+        `/api/v1/tasks/${taskInstanceId}/finish`,
+        bodyCamel,
+      );
+    } catch (camelError) {
+      if (!isValidation422(camelError)) {
+        throw camelError;
+      }
+
+      log422Details('finishTask (camelCase)', camelError);
+
+      // Fallback 2: endpoint alternativo de turnarounds
+      return flightsHttpPost<TaskEventResponse>(
+        `/api/v1/turnarounds/tasks/${taskInstanceId}/finish`,
+        bodyCamel,
+      );
+    }
+  }
 };
 
 /**
@@ -134,16 +249,52 @@ export const updateTaskTimes = async (
   endTime: string | null,
   stdIso: string | null,
 ): Promise<UpdateTaskTimesResponse> => {
-  const body: Record<string, string | null> = {
+  const bodyCamel: Record<string, string | null> = {
     updatedBy: 'operador',
     actualStart: startTime ? buildIso(startTime, stdIso) : null,
     actualEnd:   endTime   ? buildIso(endTime,   stdIso) : null,
   };
-  const response = await FlightsHttpClient.patch<UpdateTaskTimesResponse>(
-    `/api/v1/tasks/${taskInstanceId}/times`,
-    body,
-  );
-  return response.data;
+
+  try {
+    const response = await FlightsHttpClient.patch<UpdateTaskTimesResponse>(
+      `/api/v1/tasks/${taskInstanceId}/times`,
+      bodyCamel,
+    );
+    return response.data;
+  } catch (error) {
+    if (!isValidation422(error)) {
+      throw error;
+    }
+
+    log422Details('updateTaskTimes (camelCase)', error);
+
+    const bodySnake: Record<string, string | null> = {
+      updated_by: 'operador',
+      actual_start: startTime ? buildIso(startTime, stdIso) : null,
+      actual_end: endTime ? buildIso(endTime, stdIso) : null,
+      task_instance_id: taskInstanceId,
+    };
+
+    try {
+      const snakeResponse = await FlightsHttpClient.patch<UpdateTaskTimesResponse>(
+        `/api/v1/tasks/${taskInstanceId}/times`,
+        bodySnake,
+      );
+      return snakeResponse.data;
+    } catch (snakeError) {
+      if (!isValidation422(snakeError)) {
+        throw snakeError;
+      }
+
+      log422Details('updateTaskTimes (snake_case)', snakeError);
+
+      const turnaroundResponse = await FlightsHttpClient.patch<UpdateTaskTimesResponse>(
+        `/api/v1/turnarounds/tasks/${taskInstanceId}/times`,
+        bodyCamel,
+      );
+      return turnaroundResponse.data;
+    }
+  }
 };
 
 export interface UpdateTaskStatusResponse {

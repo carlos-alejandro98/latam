@@ -113,6 +113,24 @@ export const FlightGanttTimeline = ({
   tasks,
   onRowClick,
 }: FlightGanttTimelineProps): ReactNode => {
+  // Diagnóstico: loguear cambios en tasks
+  useEffect(() => {
+    console.log(
+      `[GanttTimeline] 📋 tasks actualizado — cantidad: ${tasks.length}` +
+      (tasks.length === 0
+        ? ' ⚠️  (SIN TAREAS — la gantt aparecerá vacía)'
+        : ` | primera: "${tasks[0]?.taskName ?? 'N/A'}" | última: "${tasks[tasks.length - 1]?.taskName ?? 'N/A'}"`),
+    );
+    if (tasks.length > 0) {
+      const withScheduled = tasks.filter((t) => t.inicioProgramado !== null).length;
+      const withReal = tasks.filter((t) => t.inicioReal !== null).length;
+      console.log(
+        `[GanttTimeline]   ↳ con inicioProgramado: ${withScheduled}/${tasks.length} | con inicioReal: ${withReal}/${tasks.length}`,
+      );
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks]);
+
   // Stable ref so rows always call the latest onRowClick without stale closures
   const onRowClickRef = useRef(onRowClick);
   onRowClickRef.current = onRowClick;
