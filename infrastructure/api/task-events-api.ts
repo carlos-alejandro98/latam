@@ -136,11 +136,18 @@ export const startTask = async (
     started_by: 'operador',
     notas: 'Inicio manual por operador',
   };
-  const result = await flightsHttpPost<TaskEventResponse>(
-    `/api/v1/tasks/${taskInstanceId}/start`,
-    body,
-  );
-  return result;
+  console.log('[v0] startTask request:', { endpoint: `/api/v1/tasks/${taskInstanceId}/start`, body });
+  try {
+    const result = await flightsHttpPost<TaskEventResponse>(
+      `/api/v1/tasks/${taskInstanceId}/start`,
+      body,
+    );
+    console.log('[v0] startTask response:', result);
+    return result;
+  } catch (error) {
+    console.error('[v0] startTask error:', error);
+    throw error;
+  }
 };
 
 /**
@@ -158,11 +165,18 @@ export const finishTask = async (
     finished_by: 'operador',
     notas: 'Tarea completada sin novedades',
   };
-  const result = await flightsHttpPost<TaskEventResponse>(
-    `/api/v1/tasks/${taskInstanceId}/finish`,
-    body,
-  );
-  return result;
+  console.log('[v0] finishTask request:', { endpoint: `/api/v1/tasks/${taskInstanceId}/finish`, body });
+  try {
+    const result = await flightsHttpPost<TaskEventResponse>(
+      `/api/v1/tasks/${taskInstanceId}/finish`,
+      body,
+    );
+    console.log('[v0] finishTask response:', result);
+    return result;
+  } catch (error) {
+    console.error('[v0] finishTask error:', error);
+    throw error;
+  }
 };
 
 /**
@@ -181,11 +195,18 @@ export const updateTaskTimes = async (
     actualStart: startTime ? buildIso(startTime, stdIso) : null,
     actualEnd:   endTime   ? buildIso(endTime,   stdIso) : null,
   };
-  const response = await FlightsHttpClient.patch<UpdateTaskTimesResponse>(
-    `/api/v1/tasks/${taskInstanceId}/times`,
-    body,
-  );
-  return response.data;
+  console.log('[v0] updateTaskTimes request:', { endpoint: `/api/v1/tasks/${taskInstanceId}/times`, body });
+  try {
+    const response = await FlightsHttpClient.patch<UpdateTaskTimesResponse>(
+      `/api/v1/tasks/${taskInstanceId}/times`,
+      body,
+    );
+    console.log('[v0] updateTaskTimes response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('[v0] updateTaskTimes error:', error);
+    throw error;
+  }
 };
 
 export interface UpdateTaskStatusResponse {
