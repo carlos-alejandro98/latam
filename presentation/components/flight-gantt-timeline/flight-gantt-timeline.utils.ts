@@ -343,21 +343,36 @@ const getCalculatedRange = (
     return clampBarRange(calculatedEnd - duration, calculatedEnd);
   }
 
-  if (stdMinute === null || !Number.isFinite(task.tiempoRelativoInicio)) {
-    return null;
+  if (stdMinute !== null && Number.isFinite(task.tiempoRelativoInicio)) {
+    const startMinute = stdMinute + task.tiempoRelativoInicio;
+    const endMinute =
+      task.tiempoRelativoFin !== null
+        ? stdMinute + task.tiempoRelativoFin
+        : startMinute + duration;
+
+    if (Number.isFinite(endMinute)) {
+      return clampBarRange(startMinute, endMinute);
+    }
   }
 
-  const startMinute = stdMinute + task.tiempoRelativoInicio;
-  const endMinute =
-    task.tiempoRelativoFin !== null
-      ? stdMinute + task.tiempoRelativoFin
-      : startMinute + duration;
+  // Last resort: build a synthetic calculated range from real times so the
+  // bar is always visible even when no planning data is available.
+  const realStart = ganttDateTimeToTimelineMinute(task.inicioReal, timelineStartDateMs);
+  const realEnd = ganttDateTimeToTimelineMinute(task.finReal, timelineStartDateMs);
 
-  if (!Number.isFinite(endMinute)) {
-    return null;
+  if (realStart !== null && realEnd !== null) {
+    return clampBarRange(realStart, realEnd);
   }
 
-  return clampBarRange(startMinute, endMinute);
+  if (realStart !== null) {
+    return clampBarRange(realStart, realStart + duration);
+  }
+
+  if (realEnd !== null) {
+    return clampBarRange(realEnd - duration, realEnd);
+  }
+
+  return null;
 };
 
 const getRealStartMinute = (
@@ -440,11 +455,12 @@ const getRealRange = (
     timelineStartDateMs,
   );
 
-  if (
-    realEndMinute === null &&
-    (task.estado === 'IN_PROGRESS' || task.inicioReal !== null)
-  ) {
-    realEndMinute = getTimelineMinute(new Date(nowTimestamp), timelineStartDateMs);
+  // Always extend in-progress tasks to now, or any task that has a real start
+  // but no real end (covers completed tasks that only have inicioReal).
+  if (realEndMinute === null) {
+    if (task.estado === 'IN_PROGRESS' || task.inicioReal !== null) {
+      realEndMinute = getTimelineMinute(new Date(nowTimestamp), timelineStartDateMs);
+    }
   }
 
   if (realEndMinute === null) {
@@ -593,6 +609,25 @@ export const buildTimelineRows = (
       timelineStartDateMs,
       nowTimestamp,
     );
+
+    if (!calculatedRange && !realRange) {
+      console.log('[v0] TASK SIN BARRAS:', task.taskName, {
+        inicioProgramado: task.inicioProgramado,
+        finProgramado: task.finProgramado,
+        inicioCalculado: task.inicioCalculado,
+        finCalculado: task.finCalculado,
+        inicioReal: task.inicioReal,
+        finReal: task.finReal,
+        tiempoRelativoInicio: task.tiempoRelativoInicio,
+        tiempoRelativoFin: task.tiempoRelativoFin,
+        varianzaInicio: task.varianzaInicio,
+        varianzaFin: task.varianzaFin,
+        duracionReal: task.duracionReal,
+        estado: task.estado,
+        stdMinute,
+        timelineStartDateMs,
+      });
+    }
 
     return {
       calculatedRange,
