@@ -86,14 +86,15 @@ const flightGanttSlice = createSlice({
   initialState,
   reducers: {
     /**
-     * Limpia el gantt del store al cambiar de vuelo activo, evitando que tareas
-     * del vuelo anterior se muestren durante la carga del nuevo vuelo.
+     * Limpia el gantt del store al cambiar de vuelo activo.
+     * Se establece loading=true para que FlightInfoPanel muestre el spinner
+     * en lugar del empty state mientras se carga el gantt del nuevo vuelo.
      */
     clearGanttData: (state) => {
       state.data = null;
       state.error = undefined;
       state.flightId = undefined;
-      state.loading = false;
+      state.loading = true;
     },
     /** Silent update from SSE stream — does NOT trigger loading state. */
     updateGanttData: (

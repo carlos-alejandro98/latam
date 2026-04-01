@@ -125,16 +125,6 @@ export const HomeScreen = () => {
       const key = cacheKey(instanceId);
       const cached = taskCacheRef.current.get(key);
 
-      // Log para diagnóstico de estado de tarea
-      console.log('[handleRowClick] Task data:', {
-        taskName: rowData.task.taskName,
-        instanceId,
-        estado: rowData.task.estado,
-        inicioReal: rowData.task.inicioReal,
-        finReal: rowData.task.finReal,
-        realRange: rowData.realRange,
-      });
-
       if (cached) {
         // Re-opening a task that was already interacted with — restore full cached state
         setSelectedProcess(cached);
@@ -161,8 +151,6 @@ export const HomeScreen = () => {
         } else if (rowData.task.inicioReal && !rowData.task.finReal) {
           resolvedStatus = 'IN_PROGRESS';
         }
-
-        console.log('[handleRowClick] Resolved status:', resolvedStatus, 'Original:', rowData.task.estado);
 
         setSelectedProcess({
           name: rowData.task.taskName,
