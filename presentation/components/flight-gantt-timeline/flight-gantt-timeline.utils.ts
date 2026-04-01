@@ -429,6 +429,22 @@ const getRealRange = (
     calculatedRange,
     timelineStartDateMs,
   );
+
+  if (task.inicioReal || task.finReal) {
+    const rawRealStart = ganttDateTimeToTimelineMinute(task.inicioReal, timelineStartDateMs);
+    const rawRealEnd   = ganttDateTimeToTimelineMinute(task.finReal, timelineStartDateMs);
+    console.log('[v0] getRealRange', task.taskName, {
+      inicioReal: task.inicioReal,
+      finReal: task.finReal,
+      timelineStartDate: new Date(timelineStartDateMs).toISOString(),
+      rawRealStart,
+      rawRealEnd,
+      realStartMinute,
+      estado: task.estado,
+      calculatedRange,
+    });
+  }
+
   if (realStartMinute === null) {
     return null;
   }
