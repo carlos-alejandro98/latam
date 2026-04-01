@@ -9,8 +9,8 @@ import type {
 
 const MINUTES_PER_DAY = 1440;
 const MINUTE_IN_MS = 60000;
-/** Padding applied before the first task and after the last task (3 hours). */
-const TIMELINE_WINDOW_PADDING_MINUTES = 180;
+/** Padding applied before STA and after STD (2 hours). */
+const TIMELINE_WINDOW_PADDING_MINUTES = 120;
 const MIN_BAR_DURATION_MINUTES = 0.5;
 const TIMELINE_MIN_WIDTH = 920;
 const PIXELS_PER_MINUTE = 9;
@@ -621,10 +621,7 @@ export const buildTimelineMarkers = (
    *  this takes precedence over the tatVueloMinutos-derived position. */
   pushInMinute?: number | null,
 ): TimelineMarker[] => {
-  console.log('[v0] buildTimelineMarkers called with:', { stdMinute, tatVueloMinutos, pushInMinute, currentRelativeMinute });
-  
   if (stdMinute === null) {
-    console.log('[v0] buildTimelineMarkers: stdMinute is null, returning empty');
     return [];
   }
 
@@ -639,7 +636,6 @@ export const buildTimelineMarkers = (
       minute: stdMinute,
     },
   ];
-  console.log('[v0] Added STD marker at minute:', stdMinute);
 
   // PUSH-IN: use the explicit push-back minute if provided, otherwise derive
   // from tatVueloMinutos as a fallback.
@@ -649,8 +645,6 @@ export const buildTimelineMarkers = (
       : tatVueloMinutos && tatVueloMinutos > 0
         ? stdMinute - tatVueloMinutos
         : null;
-
-  console.log('[v0] Resolved PUSH-IN minute:', resolvedPushInMinute, '(explicit pushInMinute:', pushInMinute, ')');
 
   if (resolvedPushInMinute !== null) {
     markers.push({
@@ -663,7 +657,6 @@ export const buildTimelineMarkers = (
       lineStyle: 'dashed',
       minute: resolvedPushInMinute,
     });
-    console.log('[v0] Added PUSH-IN marker');
   }
 
   if (currentRelativeMinute !== null && currentRelativeMinute !== undefined) {
@@ -679,7 +672,6 @@ export const buildTimelineMarkers = (
     });
   }
 
-  console.log('[v0] buildTimelineMarkers returning', markers.length, 'markers:', markers.map(m => ({ id: m.id, minute: m.minute })));
   return markers;
 };
 
@@ -695,43 +687,33 @@ export const buildTimelineDomain = (
   etdDate?: string | null,
   etdTime?: string | null,
 ): TimelineDomain => {
-  const referenceDateTime = resolveReferenceDateTime(
-    stdDate,
-    stdTime,
-    etdDate,
-    etdTime,
-  );
+  // STA/ETA: earliest arrival time
+  const staDateTime = parseDateTimeValue(staDate, staTime) ?? 
+                     parseDateTimeValue(etaDate, etaTime);
+  // STD/ETD: earliest departure time
+  const stdDateTime = parseDateTimeValue(stdDate, stdTime) ?? 
+                     parseDateTimeValue(etdDate, etdTime);
+  
+  const referenceDateTime = stdDateTime;
 
-  // Derive the visible window directly from the task timestamps so that ALL
-  // bars are guaranteed to be within the domain, padded by exactly 3 hours on
-  // each side.  The flight STA/STD/ETA/ETD values are only used as fallbacks
-  // when there are no task timestamps at all (e.g. before the API responds).
-  const earliestTaskTs = getEarliestTaskTimestamp(tasks);
-  const latestTaskTs   = getLatestTaskTimestamp(tasks);
+  // Base window: 2 hours before STA, 2 hours after STD
+  const domainStartDateTime = staDateTime
+    ? new Date(staDateTime.getTime() - TIMELINE_WINDOW_PADDING_MINUTES * MINUTE_IN_MS)
+    : new Date(nowTimestamp - 2 * TIMELINE_WINDOW_PADDING_MINUTES * MINUTE_IN_MS);
 
-  const startAnchorTs =
-    earliestTaskTs ??
-    (parseDateTimeValue(staDate, staTime) ??
-      parseDateTimeValue(etaDate, etaTime) ??
-      parseDateTimeValue(stdDate, stdTime) ??
-      parseDateTimeValue(etdDate, etdTime) ??
-      new Date(nowTimestamp)
-    ).getTime();
+  const domainEndDateTime = stdDateTime
+    ? new Date(stdDateTime.getTime() + TIMELINE_WINDOW_PADDING_MINUTES * MINUTE_IN_MS)
+    : new Date(nowTimestamp + 2 * TIMELINE_WINDOW_PADDING_MINUTES * MINUTE_IN_MS);
 
-  const endAnchorTs =
-    latestTaskTs ??
-    (referenceDateTime ?? new Date(nowTimestamp)).getTime();
-
-  const domainStartDateTime = new Date(
-    startAnchorTs - TIMELINE_WINDOW_PADDING_MINUTES * MINUTE_IN_MS,
-  );
-  const domainEndDateTime = new Date(
-    endAnchorTs + TIMELINE_WINDOW_PADDING_MINUTES * MINUTE_IN_MS,
-  );
+  // Expand if any task extends beyond the base window
+  const latestTaskTs = getLatestTaskTimestamp(tasks);
+  const expandedEndDateTime = latestTaskTs && latestTaskTs > domainEndDateTime.getTime()
+    ? new Date(latestTaskTs)
+    : domainEndDateTime;
 
   const safeEndDateTime =
-    domainEndDateTime.getTime() > domainStartDateTime.getTime()
-      ? domainEndDateTime
+    expandedEndDateTime.getTime() > domainStartDateTime.getTime()
+      ? expandedEndDateTime
       : new Date(
           domainStartDateTime.getTime() +
             4 * TIMELINE_WINDOW_PADDING_MINUTES * MINUTE_IN_MS,
