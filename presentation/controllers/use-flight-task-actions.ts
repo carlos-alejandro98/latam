@@ -394,6 +394,9 @@ export const useFlightTaskActions = ({
       scheduleSync,
       setOptimisticTask,
     ],
+  );
+
+  const finishTask = useCallback(
     async (
       task: FlightTaskActionTarget,
       time: string,
