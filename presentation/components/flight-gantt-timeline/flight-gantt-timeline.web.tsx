@@ -256,24 +256,19 @@ export const FlightGanttTimeline = ({
         taskCount: tasks.length,
         rowCount: builtRows.length,
         rowsWithBars: builtRows.filter(r => r.calculatedRange || r.realRange).length,
-        firstTask: tasks[0] ? {
-          taskName: tasks[0].taskName,
-          inicioProgramado: tasks[0].inicioProgramado,
-          finProgramado: tasks[0].finProgramado,
-          inicioReal: tasks[0].inicioReal,
-          finReal: tasks[0].finReal,
-          tiempoRelativoInicio: tasks[0].tiempoRelativoInicio,
-        } : null,
+        firstTask: tasks[0] ?? null,
         firstRow: builtRows[0] ? {
           calculatedRange: builtRows[0].calculatedRange,
           realRange: builtRows[0].realRange,
         } : null,
         domain: {
           timelineStartDateMs: domain.timelineStartDateMs,
+          timelineStartDate: new Date(domain.timelineStartDateMs).toISOString(),
           stdMinute: domain.stdMinute,
           minMinute: domain.minMinute,
           maxMinute: domain.maxMinute,
         },
+        propsReceived: { staDate, staTime, etaDate, etaTime, stdDate, stdTime, etdDate, etdTime },
       });
       
       return builtRows;
