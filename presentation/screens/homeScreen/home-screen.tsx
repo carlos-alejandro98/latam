@@ -124,16 +124,6 @@ export const HomeScreen = () => {
       const key = cacheKey(instanceId);
       const cached = taskCacheRef.current.get(key);
 
-      // Log para diagnóstico de estado de tarea
-      console.log('[handleRowClick] Task data:', {
-        taskName: rowData.task.taskName,
-        instanceId,
-        estado: rowData.task.estado,
-        inicioReal: rowData.task.inicioReal,
-        finReal: rowData.task.finReal,
-        realRange: rowData.realRange,
-      });
-
       if (cached) {
         // Re-opening a task that was already interacted with — restore full cached state
         setSelectedProcess(cached);
@@ -161,7 +151,17 @@ export const HomeScreen = () => {
           resolvedStatus = 'IN_PROGRESS';
         }
 
-        console.log('[handleRowClick] Resolved status:', resolvedStatus, 'Original:', rowData.task.estado);
+        // Build a full ISO reference from the task's calculated (planned) start so
+        // that buildIso in task-events-api can resolve the correct calendar day.
+        const calcStartTuple =
+          rowData.task.inicioCalculado ??
+          rowData.task.inicioProgramado;
+        const scheduledStartIso = calcStartTuple
+          ? (() => {
+              const [y, mo, d, h, mi] = calcStartTuple;
+              return `${String(y)}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}T${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}:00`;
+            })()
+          : null;
 
         setSelectedProcess({
           name: rowData.task.taskName,
@@ -172,6 +172,7 @@ export const HomeScreen = () => {
           plannedStartTime: calcStart === '--' ? undefined : calcStart,
           plannedEndTime: calcEnd === '--' ? undefined : calcEnd,
           tipoEvento: rowData.task.tipoEvento,
+          scheduledStartIso,
         });
       }
       openDrawerRef.current();
@@ -244,15 +245,13 @@ export const HomeScreen = () => {
       }
 
       const key = cacheKey(taskInstanceId);
-      console.log('[HomeScreen] handleStartTask — INIT | instanceId:', taskInstanceId, '| time:', time, '| flightId:', selectedFlight?.flightId);
       patchTask({ instanceId: taskInstanceId, startTime: time });
       try {
         const response = await startTask(
           taskInstanceId,
           time,
-          selectedFlight?.std ?? null,
+          selectedProcess?.scheduledStartIso ?? selectedFlight?.std ?? null,
         );
-        console.log('[HomeScreen] handleStartTask — SUCCESS | instanceId:', taskInstanceId, '| status_anterior:', response.status_anterior, '| status_nuevo:', response.status_nuevo, '| actual_start:', response.actual_start);
         const newStatus = response.status_nuevo ?? 'IN_PROGRESS';
         setSelectedProcess((prev) => {
           const updated = prev
@@ -274,8 +273,7 @@ export const HomeScreen = () => {
             delayMinutes: Math.abs(delay),
           }),
         );
-      } catch (err) {
-        console.error('[HomeScreen] handleStartTask — ERROR | instanceId:', taskInstanceId, '| error:', err);
+      } catch {
         patchTask({ instanceId: taskInstanceId, startTime: undefined });
         setSelectedProcess((prev) =>
           prev ? { ...prev, taskStatus: 'error' } : prev,
@@ -301,15 +299,13 @@ export const HomeScreen = () => {
       }
 
       const key = cacheKey(taskInstanceId);
-      console.log('[HomeScreen] handleFinishTask — INIT | instanceId:', taskInstanceId, '| time:', time, '| flightId:', selectedFlight?.flightId);
       patchTask({ instanceId: taskInstanceId, endTime: time });
       try {
         const response = await finishTask(
           taskInstanceId,
           time,
-          selectedFlight?.std ?? null,
+          selectedProcess?.scheduledStartIso ?? selectedFlight?.std ?? null,
         );
-        console.log('[HomeScreen] handleFinishTask — SUCCESS | instanceId:', taskInstanceId, '| status_anterior:', response.status_anterior, '| status_nuevo:', response.status_nuevo, '| actual_end:', response.actual_end);
         const newStatus = response.status_nuevo ?? 'COMPLETED';
         setSelectedProcess((prev) => {
           const updated = prev
@@ -331,8 +327,7 @@ export const HomeScreen = () => {
             delayMinutes: Math.abs(delay),
           }),
         );
-      } catch (err) {
-        console.error('[HomeScreen] handleFinishTask — ERROR | instanceId:', taskInstanceId, '| error:', err);
+      } catch {
         patchTask({ instanceId: taskInstanceId, endTime: undefined });
         setSelectedProcess((prev) =>
           prev ? { ...prev, taskStatus: 'error' } : prev,
@@ -364,7 +359,6 @@ export const HomeScreen = () => {
       }
 
       const key = cacheKey(taskInstanceId);
-      console.log('[HomeScreen] handleUpdateTask — INIT | instanceId:', taskInstanceId, '| newStartTime:', newStartTime, '| newEndTime:', newEndTime, '| flightId:', selectedFlight?.flightId);
       patchTask({
         instanceId: taskInstanceId,
         startTime: newStartTime,
@@ -375,9 +369,8 @@ export const HomeScreen = () => {
           taskInstanceId,
           newStartTime || null,
           newEndTime || null,
-          selectedFlight?.std ?? null,
+          selectedProcess?.scheduledStartIso ?? selectedFlight?.std ?? null,
         );
-        console.log('[HomeScreen] handleUpdateTask — SUCCESS | instanceId:', taskInstanceId, '| newStartTime:', newStartTime, '| newEndTime:', newEndTime);
         taskCacheRef.current.delete(key);
         const frontendStatus = newEndTime
           ? 'COMPLETADA'
@@ -426,7 +419,6 @@ export const HomeScreen = () => {
           }),
         );
       } catch (err) {
-        console.error('[HomeScreen] handleUpdateTask — ERROR | instanceId:', taskInstanceId, '| error:', err);
         patchTask({
           instanceId: taskInstanceId,
           startTime: undefined,

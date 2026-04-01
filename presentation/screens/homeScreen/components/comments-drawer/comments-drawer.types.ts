@@ -14,6 +14,13 @@ export type SelectedProcess = {
   plannedEndTime?: string;
   /** Task type — 'HITO' for milestones, 'TASK' for regular tasks */
   tipoEvento?: string;
+  /**
+   * Full ISO reference date for the task's planned start (e.g. "2026-04-01T23:32:00").
+   * Used by buildIso to resolve the correct calendar day when sending timestamps
+   * to the API — critical for overnight flights where arrival tasks are on day N
+   * and departure tasks on day N+1.
+   */
+  scheduledStartIso?: string | null;
 };
 
 export type SavedBarData = {

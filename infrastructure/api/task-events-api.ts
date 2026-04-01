@@ -52,33 +52,56 @@ const extractDateFromIso = (iso: string): string | null => {
  *   "HH:mm"  — standard masked input (e.g. "17:20")
  *   "HHmm"   — 4 raw digits without colon (e.g. "1720") — safety fallback
  *
- * Date resolution priority:
- *  1. Date extracted from `stdIso` (the flight's STD ISO string) — ensures
- *     tasks belonging to a flight on a different calendar day use the correct date.
- *  2. Today's local date — fallback when no flight ISO is available.
+ * Date resolution strategy (proximity-based):
+ *  Given a reference ISO string (the task's planned time or the flight STD),
+ *  we generate three candidate dates: reference-day-1, reference-day, reference-day+1.
+ *  We pick the candidate whose resulting timestamp is closest to the reference
+ *  timestamp.  This correctly handles overnight flights where arrival tasks sit
+ *  on day N and departure tasks on day N+1.
+ *
+ *  Fallback: today's local date when no reference is available.
  *
  * IMPORTANT: This function always uses the caller-supplied time. It never
- * silently substitutes the current system time, so whatever the operator
- * types in the UI is exactly what gets persisted to the backend.
+ * silently substitutes the current system time.
  */
-const buildIso = (timeHhmm: string, stdIso: string | null): string => {
+const buildIso = (
+  timeHhmm: string,
+  /** Reference ISO — can be the task's scheduledStart ISO or the flight's STD */
+  refIso: string | null,
+): string => {
   const now = new Date();
 
-  // Prefer the date from the flight's STD ISO so we don't accidentally shift
-  // the day when the flight belongs to a date other than today.
-  const datePart =
-    (stdIso ? extractDateFromIso(stdIso) : null) ?? localDatePart(now);
-
-  // Normalise: strip everything except digits, then re-insert the colon.
+  // Normalise input: strip non-digits, extract HH and mm.
   const digits = timeHhmm.replace(/\D/g, '');
-  const hh = digits.slice(0, 2).padStart(2, '0');
-  const mm = digits.slice(2, 4).padStart(2, '0');
+  const hh = Number(digits.slice(0, 2)) || 0;
+  const mm = Number(digits.slice(2, 4)) || 0;
+  const timePart = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:00`;
 
-  // Only build the timestamp when we have exactly 4 meaningful digits.
-  // If the input is empty / incomplete we still honour it with "00:00" so we
-  // never corrupt the stored value with the current clock.
-  const timePart = digits.length >= 4 ? `${hh}:${mm}:00` : `${hh}:${mm}:00`;
+  // Parse reference date.  Accept full ISO strings ("2026-04-01T23:32:00-03:00")
+  // or bare date strings ("2026-04-01").
+  const refDateStr = refIso ? extractDateFromIso(refIso) : null;
+  const refDate = refDateStr
+    ? new Date(`${refDateStr}T00:00:00`)
+    : now;
 
+  // Build three candidate Date objects centered on the reference day.
+  const candidates: Date[] = [-1, 0, 1].map((offset) => {
+    const d = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate() + offset, hh, mm, 0, 0);
+    return d;
+  });
+
+  // Reference timestamp for proximity comparison: refDate at HH:mm.
+  const refTs =
+    new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate(), hh, mm, 0, 0).getTime();
+
+  // Pick the candidate whose timestamp is closest to refTs.
+  const best = candidates.reduce<Date>((prev, curr) =>
+    Math.abs(curr.getTime() - refTs) < Math.abs(prev.getTime() - refTs)
+      ? curr
+      : prev,
+  );
+
+  const datePart = localDatePart(best);
   return `${datePart}T${timePart}${localOffsetStr()}`;
 };
 
