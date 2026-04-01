@@ -93,6 +93,23 @@ interface TurnaroundApiResponse {
 }
 
 function mapTurnaroundToFlightGantt(raw: TurnaroundApiResponse): FlightGantt {
+  // Diagnostic: log raw tasks to see if scheduledStart/actualStart come from API
+  if (raw.tasks.length > 0) {
+    const first = raw.tasks[0];
+    console.log('[v0] mapTurnaroundToFlightGantt — first raw task:', {
+      taskName: first.taskName,
+      scheduledStart: first.scheduledStart,
+      scheduledEnd: first.scheduledEnd,
+      actualStart: first.actualStart,
+      actualEnd: first.actualEnd,
+      status: first.status,
+    });
+    console.log('[v0] mapTurnaroundToFlightGantt — raw flight indicators:', {
+      sta: raw.flightIndicators.sta,
+      std: raw.flightIndicators.std,
+      eta: raw.flightIndicators.eta,
+    });
+  }
   const tasks: FlightGanttTask[] = raw.tasks.map((t) => ({
     instanceId: t.instanceId,
     taskId: t.taskId,

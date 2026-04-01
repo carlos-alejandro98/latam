@@ -581,6 +581,24 @@ export const buildTimelineRows = (
   stdMinute: number | null,
   nowTimestamp: number = Date.now(),
 ): TimelineTaskRowData[] => {
+  // Diagnostic: log first task to see why bars don't render
+  if (tasks.length > 0) {
+    const first = tasks[0];
+    console.log('[v0] buildTimelineRows — first task:', {
+      taskName: first.taskName,
+      inicioProgramado: first.inicioProgramado,
+      finProgramado: first.finProgramado,
+      inicioReal: first.inicioReal,
+      finReal: first.finReal,
+      tiempoRelativoInicio: first.tiempoRelativoInicio,
+      tiempoRelativoFin: first.tiempoRelativoFin,
+    });
+    console.log('[v0] buildTimelineRows — domain:', {
+      timelineStartDateMs,
+      timelineStartDate: new Date(timelineStartDateMs).toISOString(),
+      stdMinute,
+    });
+  }
   return tasks.map((task) => {
     const calculatedRange = getCalculatedRange(
       task,
