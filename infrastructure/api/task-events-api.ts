@@ -106,18 +106,17 @@ export const startTask = async (
   time: string,
   stdIso: string | null,
 ): Promise<TaskEventResponse> => {
-  const timestamp = buildIso(time, stdIso);
+  // The backend records the actual_start from its own clock.
+  // We only send the metadata fields that the endpoint accepts.
   const body = {
     task_instance_id: taskInstanceId,
-    actual_start: timestamp,
     started_by: 'operador',
-    notas: 'Inicio manual por operador',
+    notas: `Inicio manual: ${buildIso(time, stdIso)}`,
   };
-  const result = await flightsHttpPost<TaskEventResponse>(
+  return flightsHttpPost<TaskEventResponse>(
     `/api/v1/tasks/${taskInstanceId}/start`,
     body,
   );
-  return result;
 };
 
 /**
@@ -128,18 +127,15 @@ export const finishTask = async (
   time: string,
   stdIso: string | null,
 ): Promise<TaskEventResponse> => {
-  const timestamp = buildIso(time, stdIso);
   const body = {
     task_instance_id: taskInstanceId,
-    actual_end: timestamp,
     finished_by: 'operador',
-    notas: 'Tarea completada sin novedades',
+    notas: `Fin manual: ${buildIso(time, stdIso)}`,
   };
-  const result = await flightsHttpPost<TaskEventResponse>(
+  return flightsHttpPost<TaskEventResponse>(
     `/api/v1/tasks/${taskInstanceId}/finish`,
     body,
   );
-  return result;
 };
 
 /**
