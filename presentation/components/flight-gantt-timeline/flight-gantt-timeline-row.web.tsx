@@ -759,7 +759,7 @@ export const FlightGanttTimelineRow = memo(
             </div>
           </>
         )}
-        <div style={{ ...styles.timelineCell, width: timelineViewportWidth }}>
+        <div style={{ ...styles.timelineCell, width: timelineViewportWidth, position: 'relative' }}>
           <div
             style={{
               ...styles.timelineTrack,
@@ -780,7 +780,6 @@ export const FlightGanttTimelineRow = memo(
                   {realBar}
                 </>
               )}
-              {markerLines}
               {isHito ? (
                 <>
                   {hitoCalculatedLabel}
@@ -794,6 +793,20 @@ export const FlightGanttTimelineRow = memo(
               )}
             </svg>
           </div>
+          {/* Markers overlay: positioned absolutely to float above scrollable content */}
+          <svg
+            width={timelineWidth}
+            height={ROW_HEIGHT}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: -timelineOffset,
+              pointerEvents: 'none',
+              overflow: 'visible',
+            }}
+          >
+            {markerLines}
+          </svg>
         </div>
       </div>
     );
