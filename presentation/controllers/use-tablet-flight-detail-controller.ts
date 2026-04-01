@@ -93,6 +93,7 @@ export const useTabletFlightDetailController = (
     loadFlightGantt,
     refreshTurnaroundMetrics,
     patchTask,
+    updateTaskFromApiResponse,
   } = useFlightGanttController(flight?.flightId);
   const [searchDraft, setSearchDraft] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -119,6 +120,7 @@ export const useTabletFlightDetailController = (
   } = useFlightTaskActions({
     flight,
     patchTask,
+    updateTaskFromApiResponse,
     loadFlightGantt,
   });
 

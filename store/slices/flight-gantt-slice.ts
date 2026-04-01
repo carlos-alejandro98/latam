@@ -38,7 +38,33 @@ interface OptimisticTaskPayload {
 }
 
 /**
- * Converts "HH:mm" into a GanttDateTime tuple [year,month,day,hour,minute].
+ * Payload for updating a task with API response data (actualStart, actualEnd, etc).
+ * This is used after startTask/finishTask/updateTaskTimes API calls.
+ */
+interface ApiTaskUpdatePayload {
+  instanceId: string;
+  actualStart?: string | null;  // ISO string from API
+  actualEnd?: string | null;    // ISO string from API
+  estado?: string;              // Status from API
+  duracionReal?: number | null;
+}
+
+/**
+ * Converts ISO string "2026-04-01T12:30:45Z" or "2026-04-01T12:30:45-03:00"
+ * to GanttDateTime tuple [year, month, day, hour, minute]
+ */
+const isoToGanttDateTime = (iso: string | null | undefined): FlightGantt['tasks'][0]['inicioReal'] | null => {
+  if (!iso) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(iso);
+  if (!match) return null;
+  return [
+    parseInt(match[1], 10),
+    parseInt(match[2], 10),
+    parseInt(match[3], 10),
+    parseInt(match[4], 10),
+    parseInt(match[5], 10),
+  ] as unknown as FlightGantt['tasks'][0]['inicioReal'];
+};
  *
  * The date is derived from the task's planned/calculated dates so that times
  * which cross midnight (e.g. arrival 23:xx → departure 02:xx next day) land
@@ -140,10 +166,75 @@ const flightGanttSlice = createSlice({
       state.data = action.payload;
     },
     /**
-     * Optimistically patches a single task in the current gantt so the UI
-     * reflects the user's action immediately while the backend processes it.
-     * The next real fetch will overwrite these values with server data.
+     * Updates a task with API response data (actualStart, actualEnd, status).
+     * Used after startTask/finishTask/updateTaskTimes succeed on the backend.
      */
+    updateTaskFromApi: (
+      state,
+      action: import('@reduxjs/toolkit').PayloadAction<ApiTaskUpdatePayload>,
+    ) => {
+      if (!state.data) return;
+      const { instanceId, actualStart, actualEnd, estado, duracionReal } = action.payload;
+      const task = state.data.tasks.find((t) => t.instanceId === instanceId);
+      if (!task) return;
+
+      // Update with API response data
+      if (actualStart) {
+        task.inicioReal = isoToGanttDateTime(actualStart);
+      }
+      if (actualEnd) {
+        task.finReal = isoToGanttDateTime(actualEnd);
+      }
+      if (estado) {
+        task.estado = estado;
+      }
+      if (duracionReal !== undefined) {
+        task.duracionReal = duracionReal;
+      }
+
+      // Update derived fields
+      if (task.finReal) {
+        task.estado = 'COMPLETED';
+      } else if (task.inicioReal) {
+        task.estado = 'IN_PROGRESS';
+      }
+
+      task.duracionReal = duracionReal ?? diffMinutes(task.inicioReal, task.finReal);
+      task.ultimoEvento = task.finReal ?? task.inicioReal ?? task.ultimoEvento;
+
+      // Recalculate variance for delay detection
+      const calcStartAbsMin = task.inicioCalculado
+        ? (task.inicioCalculado[3] % 24) * 60 + task.inicioCalculado[4]
+        : null;
+      const calcEndAbsMin = task.finCalculado
+        ? (task.finCalculado[3] % 24) * 60 + task.finCalculado[4]
+        : null;
+      const realStartAbsMin = task.inicioReal
+        ? (task.inicioReal[3] % 24) * 60 + task.inicioReal[4]
+        : null;
+      const realEndAbsMin = task.finReal
+        ? (task.finReal[3] % 24) * 60 + task.finReal[4]
+        : null;
+
+      task.varianzaInicio =
+        realStartAbsMin !== null && calcStartAbsMin !== null
+          ? realStartAbsMin - calcStartAbsMin
+          : null;
+      task.varianzaFin =
+        realEndAbsMin !== null && calcEndAbsMin !== null
+          ? realEndAbsMin - calcEndAbsMin
+          : null;
+
+      const startLate =
+        realStartAbsMin !== null &&
+        calcStartAbsMin !== null &&
+        realStartAbsMin > calcStartAbsMin + 0.5;
+      const endLate =
+        realEndAbsMin !== null &&
+        calcEndAbsMin !== null &&
+        realEndAbsMin > calcEndAbsMin + 0.5;
+      task.estaRetrasada = startLate || endLate;
+    },
     optimisticUpdateTask: (
       state,
       action: import('@reduxjs/toolkit').PayloadAction<OptimisticTaskPayload>,
@@ -233,6 +324,6 @@ const flightGanttSlice = createSlice({
   },
 });
 
-export const { updateGanttData, optimisticUpdateTask } =
+export const { updateGanttData, optimisticUpdateTask, updateTaskFromApi } =
   flightGanttSlice.actions;
 export default flightGanttSlice.reducer;

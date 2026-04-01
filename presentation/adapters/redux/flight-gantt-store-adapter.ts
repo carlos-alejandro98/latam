@@ -8,6 +8,7 @@ import {
   refreshTurnaroundMetrics,
   updateGanttData,
   optimisticUpdateTask,
+  updateTaskFromApi,
 } from '@/store/slices/flight-gantt-slice';
 
 export const useFlightGanttStoreAdapter = () => {
@@ -44,6 +45,17 @@ export const useFlightGanttStoreAdapter = () => {
     [dispatch],
   );
 
+  const updateTaskFromApiResponse = useCallback(
+    (payload: {
+      instanceId: string;
+      actualStart?: string | null;
+      actualEnd?: string | null;
+      estado?: string;
+      duracionReal?: number | null;
+    }) => dispatch(updateTaskFromApi(payload)),
+    [dispatch],
+  );
+
   return {
     gantt,
     loading,
@@ -55,5 +67,7 @@ export const useFlightGanttStoreAdapter = () => {
     applyGanttUpdate,
     /** Optimistically patches a single task before the backend confirms. */
     patchTask,
+    /** Updates a task with API response data (actualStart, actualEnd, status). */
+    updateTaskFromApiResponse,
   };
 };

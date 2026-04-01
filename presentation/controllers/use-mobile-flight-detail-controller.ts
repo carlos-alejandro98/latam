@@ -91,6 +91,7 @@ export const useMobileFlightDetailController = (
     loadFlightGantt,
     refreshTurnaroundMetrics,
     patchTask,
+    updateTaskFromApiResponse,
   } = useFlightGanttController(flight?.flightId);
   const resolvedGantt =
     flight && gantt?.flight?.flightId === flight.flightId ? gantt : null;
@@ -105,6 +106,7 @@ export const useMobileFlightDetailController = (
   } = useFlightTaskActions({
     flight,
     patchTask,
+    updateTaskFromApiResponse,
     loadFlightGantt,
   });
 

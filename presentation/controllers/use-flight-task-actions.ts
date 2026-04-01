@@ -68,6 +68,13 @@ type UseFlightTaskActionsOptions = {
     startTime?: string | null;
     endTime?: string | null;
   }) => void;
+  updateTaskFromApiResponse: (payload: {
+    instanceId: string;
+    actualStart?: string | null;
+    actualEnd?: string | null;
+    estado?: string;
+    duracionReal?: number | null;
+  }) => void;
   loadFlightGantt: (flightId: string) => unknown;
 };
 
@@ -197,6 +204,7 @@ const resolveTaskStartTime = (task: FlightTaskActionTarget): string | null => {
 export const useFlightTaskActions = ({
   flight,
   patchTask,
+  updateTaskFromApiResponse,
   loadFlightGantt,
 }: UseFlightTaskActionsOptions): UseFlightTaskActionsResult => {
   const dispatch = useDispatch<AppDispatch>();
@@ -347,6 +355,14 @@ export const useFlightTaskActions = ({
         );
         const delayMinutes = calcDelayMinutes(time, task.plannedStartTime);
         registerSessionEvent('started', task, time, delayMinutes);
+        
+        // Update task with API response data
+        updateTaskFromApiResponse({
+          instanceId: task.instanceId,
+          actualStart: response.actual_start ?? null,
+          estado: response.status_nuevo ?? 'IN_PROGRESS',
+        });
+        
         scheduleSync();
 
         const result = {
@@ -372,14 +388,12 @@ export const useFlightTaskActions = ({
       flight?.std,
       keepOptimisticTask,
       patchTask,
+      updateTaskFromApiResponse,
       registerSessionEvent,
       reloadNow,
       scheduleSync,
       setOptimisticTask,
     ],
-  );
-
-  const finishTask = useCallback(
     async (
       task: FlightTaskActionTarget,
       time: string,
@@ -406,6 +420,14 @@ export const useFlightTaskActions = ({
         );
         const delayMinutes = calcDelayMinutes(time, task.plannedEndTime);
         registerSessionEvent('finished', task, time, delayMinutes);
+        
+        // Update task with API response data
+        updateTaskFromApiResponse({
+          instanceId: task.instanceId,
+          actualEnd: response.actual_end ?? null,
+          estado: response.status_nuevo ?? 'COMPLETED',
+        });
+        
         scheduleSync();
 
         const result = {
@@ -431,6 +453,7 @@ export const useFlightTaskActions = ({
       flight?.std,
       keepOptimisticTask,
       patchTask,
+      updateTaskFromApiResponse,
       registerSessionEvent,
       reloadNow,
       scheduleSync,
@@ -469,12 +492,21 @@ export const useFlightTaskActions = ({
       });
 
       try {
-        await updateTaskTimesRequest(
+        const response = await updateTaskTimesRequest(
           task.instanceId,
           startTime || null,
           endTime || null,
           flight?.std ?? null,
         );
+
+        // Update task with API response data
+        updateTaskFromApiResponse({
+          instanceId: task.instanceId,
+          actualStart: startTime && response.actual_start ? response.actual_start : null,
+          actualEnd: endTime && response.actual_end ? response.actual_end : null,
+          estado: response.status_nuevo ?? undefined,
+          duracionReal: response.duracion_real ?? null,
+        });
 
         const delayStart = startTime
           ? calcDelayMinutes(startTime, task.plannedStartTime)
@@ -518,6 +550,7 @@ export const useFlightTaskActions = ({
       flight?.std,
       keepOptimisticTask,
       patchTask,
+      updateTaskFromApiResponse,
       registerSessionEvent,
       reloadNow,
       scheduleSync,

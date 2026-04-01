@@ -35,5 +35,6 @@ export const useFlightGanttController = (
     loadFlightGantt,
     refreshTurnaroundMetrics,
     patchTask: storeAdapter.patchTask,
+    updateTaskFromApiResponse: storeAdapter.updateTaskFromApiResponse,
   };
 };
