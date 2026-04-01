@@ -31,6 +31,7 @@ const AppHeaderComponent: React.FC<AppHeaderProps> = ({
   onLogoutPress,
   showNotification = false,
   userName,
+  userRole,
   userPhotoUrl,
 }) => {
   const insets = useSafeAreaInsets();
@@ -116,6 +117,7 @@ const AppHeaderComponent: React.FC<AppHeaderProps> = ({
             onAvatarPress={onAvatarPress}
             onLogoutPress={onLogoutPress}
             userName={userName}
+            userRole={userRole}
             userPhotoUrl={userPhotoUrl}
           />
         </View>

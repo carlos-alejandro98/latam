@@ -45,6 +45,8 @@ interface TurnaroundApiTask {
   progressPercent: number;
   shouldBeInProgress: boolean;
   shouldBeCompleted: boolean;
+  visibleOnFront?: boolean;
+  visible_on_front?: boolean;
 }
 
 interface TurnaroundApiResponse {
@@ -133,6 +135,8 @@ function mapTurnaroundToFlightGantt(raw: TurnaroundApiResponse): FlightGantt {
     ultimoUsuario: null,
     ultimoEvento: null,
     notas: null,
+    visibleOnFront:
+      (t.visibleOnFront ?? t.visible_on_front) !== false,
   }));
 
   const completedTasks = tasks.filter((t) => t.estado === 'COMPLETED').length;

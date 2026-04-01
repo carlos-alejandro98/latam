@@ -302,10 +302,7 @@ export const FlightInfoPanel = ({
   // Observe the actual width of the center area to decide layout direction
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // Solo muestra el spinner en la carga inicial, cuando no hay viewModel todavía.
-  // Si ya hay datos (viewModel existe), se renderiza el contenido aunque loading sea true,
-  // evitando que actualizaciones del stream reemplacen la gantt visible con un spinner.
-  if (loading && !viewModel) {
+  if (loading) {
     return (
       <Box style={styles.loadingWrapper}>
         <Box style={styles.loadingContent}>
@@ -670,7 +667,8 @@ export const FlightInfoPanel = ({
                     color="primary"
                     style={{ fontSize: 14, padding: 4 }}
                   >
-                    Tempo Plan: 1:05
+                    Tempo Plan:{' '}
+                    {viewModel.subBar.tempoPlan ?? '--:--'}
                   </Text>
                 </View>
               </Box>

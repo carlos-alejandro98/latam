@@ -8,23 +8,27 @@ import React, {
 import {
   Animated,
   PanResponder,
+  Platform,
   Pressable,
   View,
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useAuthSelector } from '@/presentation/adapters/redux/use-auth-selector';
 import {
   AppHeader,
   HEADER_HEIGHT_MOBILE,
 } from '@/presentation/components/app-header';
 import { MobileFlightDetail } from '@/presentation/components/mobile-flight-detail';
 import { MobileFlightList } from '@/presentation/components/mobile-flight-list';
+import { useAuthController } from '@/presentation/controllers/use-auth-controller';
 import { useFlightListController } from '@/presentation/controllers/use-flight-list-controller';
 import { useHomeController } from '@/presentation/controllers/use-home-controller';
 import { useMobileFlightDetailController } from '@/presentation/controllers/use-mobile-flight-detail-controller';
 import { useFlightRealtimeUpdates } from '@/presentation/hooks/use-flight-realtime-updates';
 import { FlightGanttEmptyState } from '@/presentation/screens/homeScreen/components/flight-gantt-empty-state';
+import type { AuthRole } from '@/store/slices/auth-slice';
 
 import { styles } from './mobile-home-screen.styles';
 
@@ -49,16 +53,38 @@ export const MobileHomeScreen = () => {
   } = useHomeController();
   const flightListController = useFlightListController({ flights });
   const mobileFlightDetail = useMobileFlightDetailController(selectedFlight);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const { logout } = useAuthController();
+  const { userName, role, userPhotoUrl } = useAuthSelector();
+  const roleLabels: Record<AuthRole, string> = {
+    admin: 'Admin',
+    viewer: 'Viewer',
+    controller: 'Controller',
+    ['above_the_wing']: 'Embarque',
+    ['below_the_wing']: 'DOT',
+  };
+  const userRoleLabel = role ? (roleLabels[role] ?? role) : '';
+  /**
+   * Android: al entrar tras el login, abrir la fila de vuelos de inicio (como en tablet).
+   * iOS: drawer cerrado hasta que el usuario abra el menú.
+   */
+  const [isDrawerOpen, setIsDrawerOpen] = useState(
+    () => Platform.OS === 'android',
+  );
   const [refreshing, setRefreshing] = useState(false);
   const translateX = useRef(new Animated.Value(0)).current;
   /** First frame: snap position only; keep drawer mounted so the flight list is not remounted. */
   const drawerPositionInitialized = useRef(false);
+  /** Evita cerrar el drawer en el primer efecto (Android entra con lista abierta). */
+  const hasSkippedInitialCloseOnFlightChange = useRef(false);
 
   useFlightRealtimeUpdates();
 
-  // Solo reaccionar a cambios de `selectedFlightId`; el objeto vuelo cambia de referencia con parches Redux.
+  // Cerrar drawer al cambiar de vuelo; no en la primera ejecución (montaje inicial).
   useEffect(() => {
+    if (!hasSkippedInitialCloseOnFlightChange.current) {
+      hasSkippedInitialCloseOnFlightChange.current = true;
+      return;
+    }
     setIsDrawerOpen(false);
   }, [selectedFlightId]);
 
@@ -171,7 +197,13 @@ export const MobileHomeScreen = () => {
         onHelpPress={() => {}}
         onNotificationPress={() => {}}
         onAvatarPress={() => {}}
+        onLogoutPress={() => {
+          void logout();
+        }}
         showNotification
+        userName={userName}
+        userRole={userRoleLabel}
+        userPhotoUrl={userPhotoUrl || undefined}
       />
       <View style={styles.content}>
         <View style={styles.detailColumn}>

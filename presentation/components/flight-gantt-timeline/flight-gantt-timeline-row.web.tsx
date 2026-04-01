@@ -175,13 +175,15 @@ const renderPointMinuteLabel = (
     return null;
   }
 
+  const pointX = Math.round(xScale(minute));
+
   return (
     <text
       key={`${key}-minute-label`}
       x={
         side === 'left'
-          ? xScale(minute) - HITO_LABEL_POINT_OFFSET
-          : xScale(minute) + HITO_LABEL_POINT_OFFSET
+          ? pointX - HITO_LABEL_POINT_OFFSET
+          : pointX + HITO_LABEL_POINT_OFFSET
       }
       y={y}
       fill={BAR_EDGE_LABEL_COLOR}
@@ -203,16 +205,47 @@ const renderRangeBar = (
   range: { endMinute: number; startMinute: number },
   xScale: (value: number) => number,
   y: number,
-  _animationKey?: string | number,
-  _isInProgress?: boolean,
+  animationKey?: string | number,
+  isInProgress?: boolean,
 ): ReactNode => {
   const x = xScale(range.startMinute);
   const width = Math.max(2, xScale(range.endMinute) - x);
   const durationMin = Math.round(range.endMinute - range.startMinute);
   const showLabel = width >= MIN_WIDTH_FOR_LABEL && durationMin > 0;
+  const animId = `bar-anim-${key}-${animationKey ?? 0}`;
+
+  // In-progress bars grow 1px per second via CSS animation so the user
+  // sees gradual progression instead of an instant full-width bar.
+  // The "pixels per second" value is derived from the xScale resolution:
+  // each minute = (xScale(1) - xScale(0)) pixels, so 1 second = that / 60.
+  const pixelsPerSecond = (xScale(1) - xScale(0)) / 60;
+  const animationStyle: React.CSSProperties = isInProgress
+    ? {
+        animationName: 'gantt-bar-grow',
+        animationDuration: `${Math.max(1, Math.round(width / Math.max(0.001, pixelsPerSecond)))}s`,
+        animationTimingFunction: 'linear',
+        animationFillMode: 'forwards',
+        animationIterationCount: '1',
+        transformOrigin: `${x}px ${y}px`,
+      }
+    : {};
 
   return (
     <g key={key}>
+      <defs>
+        {isInProgress && (
+          <style>{`
+            @keyframes gantt-bar-grow {
+              from { clip-path: inset(0 100% 0 0); }
+              to   { clip-path: inset(0 0% 0 0); }
+            }
+          `}</style>
+        )}
+        <clipPath id={`clip-${animId}`}>
+          <rect x={x} y={y} width={width} height={height} rx={3} ry={3} />
+        </clipPath>
+      </defs>
+      {/* Bar rect — grows slowly when in-progress, instant when static */}
       <rect
         x={x}
         y={y}
@@ -221,7 +254,24 @@ const renderRangeBar = (
         fill={fill}
         rx={3}
         ry={3}
-      />
+        clipPath={`url(#clip-${animId})`}
+        style={isInProgress ? animationStyle : undefined}
+      >
+        {!isInProgress && (
+          <animate
+            attributeName="width"
+            from="0"
+            to={String(width)}
+            dur="0.45s"
+            begin="0s"
+            fill="freeze"
+            calcMode="spline"
+            keyTimes="0;1"
+            keySplines="0.4 0 0.2 1"
+          />
+        )}
+      </rect>
+      {/* Duration label centered on the bar */}
       {showLabel && (
         <text
           x={x + width / 2}
@@ -251,7 +301,8 @@ const renderHitoMarker = (
   xScale: (value: number) => number,
   tint: 'gray' | 'original' | 'red' | 'green',
 ): ReactNode => {
-  const cx = xScale(minute);
+  // Snap the milestone marker to a whole pixel so it stays centered on the time grid.
+  const cx = Math.round(xScale(minute));
   const topY = (ROW_HEIGHT - HITO_SIZE) / 2;
   const bottomY = topY + HITO_SIZE;
   const circleR = 5.375;
@@ -276,6 +327,7 @@ const renderHitoMarker = (
         x2={cx}
         y2={lineTopEnd}
         stroke={color}
+        shapeRendering="crispEdges"
         strokeWidth={2}
       />
       <circle
@@ -292,6 +344,7 @@ const renderHitoMarker = (
         x2={cx}
         y2={bottomY}
         stroke={color}
+        shapeRendering="crispEdges"
         strokeWidth={2}
       />
     </g>
@@ -339,6 +392,22 @@ export const FlightGanttTimelineRow = memo(
     const realEnd = useMemo(
       () => formatGanttDateTime(rowData.task.finReal),
       [rowData.task.finReal],
+    );
+
+    // Horas programadas: mismo criterio que la hora real (tuple del back).
+    // formatAbsoluteMinute(calculatedRange) puede desviarse ±1 min por fracciones
+    // en ms→minutos (p. ej. DST) y Math.round, confundiendo al usuario.
+    const scheduledStartLabel = useMemo(
+      () =>
+        formatGanttDateTime(rowData.task.inicioProgramado) ??
+        (calculatedStart !== null ? formatAbsoluteMinute(calculatedStart) : null),
+      [rowData.task.inicioProgramado, calculatedStart],
+    );
+    const scheduledEndLabel = useMemo(
+      () =>
+        formatGanttDateTime(rowData.task.finProgramado) ??
+        (calculatedEnd !== null ? formatAbsoluteMinute(calculatedEnd) : null),
+      [rowData.task.finProgramado, calculatedEnd],
     );
 
     // Early  = real start is strictly before calculated start (green)
@@ -615,9 +684,7 @@ export const FlightGanttTimelineRow = memo(
               variant="label-sm"
               style={{ fontWeight: 600, lineHeight: 1.2 }}
             >
-              {calculatedEnd !== null
-                ? formatAbsoluteMinute(calculatedEnd)
-                : '--'}
+              {scheduledEndLabel ?? '--'}
             </Text>
             <Text
               variant="label-xs"
@@ -657,9 +724,7 @@ export const FlightGanttTimelineRow = memo(
                 variant="label-sm"
                 style={{ fontWeight: 600, lineHeight: 1.2 }}
               >
-                {calculatedStart !== null
-                  ? formatAbsoluteMinute(calculatedStart)
-                  : '--'}
+                {scheduledStartLabel ?? '--'}
               </Text>
               <Text
                 variant="label-xs"
@@ -685,9 +750,7 @@ export const FlightGanttTimelineRow = memo(
                 variant="label-sm"
                 style={{ fontWeight: 600, lineHeight: 1.2 }}
               >
-                {calculatedEnd !== null
-                  ? formatAbsoluteMinute(calculatedEnd)
-                  : '--'}
+                {scheduledEndLabel ?? '--'}
               </Text>
               <Text
                 variant="label-xs"

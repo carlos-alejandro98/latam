@@ -4,6 +4,7 @@ import type {
   FlightGanttTask,
   GanttDateTime,
 } from '@/domain/entities/flight-gantt';
+import { filterTasksVisibleOnFront } from '@/presentation/components/flight-gantt-timeline/flight-gantt-timeline.utils';
 import {
   resolveAvailableTime,
   resolveConfirmedPushOutTime,
@@ -447,6 +448,7 @@ export const createTabletFlightDetailViewModel = (
   const ganttFlight = gantt?.flight;
   const summary = gantt?.summary;
   const ganttTasks = gantt?.tasks ?? [];
+  const tasksVisibleOnFront = filterTasksVisibleOnFront(ganttTasks);
   const arrivalBox =
     ganttFlight?.parkPositionArrival ??
     flight.parkPositionArrival ??
@@ -495,7 +497,7 @@ export const createTabletFlightDetailViewModel = (
   });
   const mtd = resolveMtd(taskImpact.netImpactMinutes);
 
-  const tasks = [...ganttTasks]
+  const tasks = [...tasksVisibleOnFront]
     .sort((leftTask, rightTask) => {
       return (
         getComparableTaskTimestamp(leftTask) -

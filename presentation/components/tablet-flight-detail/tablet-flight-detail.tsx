@@ -124,7 +124,8 @@ const TempoDisponivelLive = ({
     }
   }, [allTasksCompleted, completedFrozenSeconds, pushOutDelaySeconds, seconds]);
 
-  const displaySeconds = pushOutDelaySeconds ?? completedFrozenSeconds ?? seconds;
+  const displaySeconds =
+    pushOutDelaySeconds ?? completedFrozenSeconds ?? seconds;
   const textColor =
     displaySeconds !== null && displaySeconds < 0
       ? '#C8001E'
@@ -238,9 +239,7 @@ const renderContentState = (message: string): JSX.Element => (
   </View>
 );
 
-const getTaskActionStyle = (
-  task: TabletFlightTaskViewModel,
-): object => {
+const getTaskActionStyle = (task: TabletFlightTaskViewModel): object => {
   if (task.statusTone === 'completed') {
     return styles.taskActionCompleted;
   }
@@ -506,7 +505,7 @@ export const TabletFlightDetail = ({
             {loading && !filteredTasks.length
               ? renderContentState('Cargando procesos...')
               : filteredTasks.length
-              ? filteredTasks.map((task) => {
+                ? filteredTasks.map((task) => {
                     return (
                       <View key={task.instanceId} style={styles.taskCard}>
                         <View style={styles.taskCardHeader}>
@@ -540,7 +539,9 @@ export const TabletFlightDetail = ({
                                       variant="heading-xl"
                                       style={styles.taskMetricValue}
                                     >
-                                      {task.scheduledRangeLabel.split(' - ')[0] ?? '--'}
+                                      {task.scheduledRangeLabel.split(
+                                        ' - ',
+                                      )[0] ?? '--'}
                                     </Text>
                                     <Text
                                       variant="label-lg"

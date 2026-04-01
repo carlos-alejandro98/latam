@@ -208,15 +208,16 @@ export const FlightGanttTimeline = ({
     };
   }, []);
 
-  // Domain only recalculates when flight data or tasks change — NOT every second.
-  // nowTimestamp is intentionally excluded: the domain window (start/end anchors)
-  // is derived from fixed flight timestamps, so ticking every second would
-  // recompute timelineStartDateMs unnecessarily and shift all bar positions.
+  const tasksVisibleOnFront = useMemo<FlightGanttTask[]>(
+    () => tasks.filter((task) => task.visibleOnFront !== false),
+    [tasks],
+  );
+
   const domain = useMemo(
     () =>
       buildTimelineDomain(
-        tasks,
-        Date.now(),
+        tasksVisibleOnFront,
+        nowTimestamp,
         staDate,
         staTime,
         etaDate,
@@ -226,9 +227,9 @@ export const FlightGanttTimeline = ({
         etdDate,
         etdTime,
       ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
-      tasks,
+      tasksVisibleOnFront,
+      nowTimestamp,
       staDate,
       staTime,
       etaDate,
@@ -243,12 +244,17 @@ export const FlightGanttTimeline = ({
   const rows = useMemo(
     () =>
       buildTimelineRows(
-        tasks,
+        tasksVisibleOnFront,
         domain.timelineStartDateMs,
         domain.stdMinute,
         nowTimestamp,
       ),
-    [tasks, domain.timelineStartDateMs, domain.stdMinute, nowTimestamp],
+    [
+      tasksVisibleOnFront,
+      domain.timelineStartDateMs,
+      domain.stdMinute,
+      nowTimestamp,
+    ],
   );
 
   // Auto-scroll to the bottom of the vertical list whenever a new row is added.

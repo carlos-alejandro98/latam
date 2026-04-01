@@ -525,12 +525,11 @@ export const useFlightTaskActions = ({
     ],
   );
 
-  /** Breve pausa entre start y finish del HITO para que el backend/worker registre el inicio */
-  const HITO_FINISH_DELAY_MS = 600;
-
   /**
-   * HITO desde botón nativo: inicio + fin. Pausa breve entre APIs; al final un `reloadNow()`
-   * cancela el sync diferido y trae el Gantt una sola vez (evita dos refetch seguidos con datos viejos).
+   * HITO "Marcar Marco": un solo PATCH de tiempos (inicio = fin = hora del marco) evita la
+   * condición de carrera de dos POST /start y /finish seguidos en mobile/tablet, que podían
+   * pisarse en el backend. Si el hito ya tenía inicio real, solo se llama /finish.
+   * Tras el PATCH se fuerza `reloadNow()` para alinear Gantt con la API (además del scheduleSync interno de updateTask).
    */
   const completeHitoTask = useCallback(
     async (
@@ -541,18 +540,11 @@ export const useFlightTaskActions = ({
       if (onlyFinish) {
         return finishTask(task, time);
       }
-      await startTask(task, time);
-      await new Promise<void>((resolve) => {
-        setTimeout(resolve, HITO_FINISH_DELAY_MS);
-      });
-      const result = await finishTask(
-        { ...task, startTimeLabel: time },
-        time,
-      );
+      const result = await updateTask(task, time, time);
       reloadNow();
       return result;
     },
-    [finishTask, reloadNow, startTask],
+    [finishTask, reloadNow, updateTask],
   );
 
   return {

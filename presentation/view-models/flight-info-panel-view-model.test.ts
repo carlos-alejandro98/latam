@@ -234,6 +234,70 @@ describe('createFlightInfoPanelViewModel', () => {
     });
   });
 
+  it('shows Tempo Plan as elapsed time from STA to STD', () => {
+    const viewModel = createFlightInfoPanelViewModel(baseFlight, null);
+    // STA 05:10 → STD 10:30 same day = 5h 20m (independent of tatVueloMinutos)
+    expect(viewModel.subBar.tempoPlan).toBe('05:20');
+  });
+
+  it('parses STA/STD with seconds for Tempo Plan', () => {
+    const viewModel = createFlightInfoPanelViewModel(
+      { ...baseFlight, staTime: '05:10:00', stdTime: '10:30:00' },
+      null,
+    );
+    expect(viewModel.subBar.tempoPlan).toBe('05:20');
+  });
+
+  it('falls back to tatVueloMinutos when STA–STD interval is unavailable', () => {
+    const viewModel = createFlightInfoPanelViewModel(
+      { ...baseFlight, staTime: '', stdTime: '10:30' },
+      null,
+    );
+    expect(viewModel.subBar.tempoPlan).toBe('01:35');
+  });
+
+  it('parses STA/STD dates as DD/MM/YYYY for Tempo Plan', () => {
+    const viewModel = createFlightInfoPanelViewModel(
+      {
+        ...baseFlight,
+        staDate: '01/12/2025',
+        stdDate: '01/12/2025',
+      },
+      null,
+    );
+    expect(viewModel.subBar.tempoPlan).toBe('05:20');
+  });
+
+  it('uses ISO `std` when stdDate/stdTime are empty', () => {
+    const viewModel = createFlightInfoPanelViewModel(
+      {
+        ...baseFlight,
+        stdDate: '',
+        stdTime: '',
+        std: '2025-12-01T10:30:00',
+      },
+      null,
+    );
+    expect(viewModel.subBar.tempoPlan).toBe('05:20');
+  });
+
+  it('uses optional ISO `sta` when staDate/staTime are empty', () => {
+    const viewModel = createFlightInfoPanelViewModel(
+      {
+        ...baseFlight,
+        staDate: '',
+        staTime: '',
+        sta: '2025-12-01T05:10:00',
+        stdDate: '',
+        stdTime: '',
+        std: '2025-12-01T10:30:00',
+        tatVueloMinutos: null,
+      },
+      null,
+    );
+    expect(viewModel.subBar.tempoPlan).toBe('05:20');
+  });
+
   it('keeps the countdown live when only the raw push-out exists without the marked push-back hito', () => {
     const viewModel = createFlightInfoPanelViewModel(
       {
@@ -270,6 +334,7 @@ describe('createFlightInfoPanelViewModel', () => {
 
     expect(viewModel.summary.pushOutTime).toBe('2025-12-01T10:35:00');
     expect(viewModel.timeline.pushOutTime).toBe('2025-12-01T10:35:00');
+  });
   });
 
   it('uses programmed task times as the default source for event labels and ordering', () => {

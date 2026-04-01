@@ -103,7 +103,8 @@ export interface FlightInfoPanelSubBarViewModel {
   wchrArrival: string;
   wchrDeparture: string;
   routeType: string | null; // e.g. "DOM - INTER"
-  tempoPlan: string | null; // e.g. "1:05"
+  /** Plan fijo (no cuenta regresiva): STA→STD en minutos o, si no aplica, `tatVueloMinutos` API. */
+  tempoPlan: string | null;
 }
 
 export interface FlightInfoPanelViewModel {
@@ -204,7 +205,12 @@ const formatEtdDisplayValue = (
 };
 
 const formatMinutesToTime = (minutes?: number | null): string => {
-  if (minutes === null || minutes === undefined) {
+  if (
+    minutes === null ||
+    minutes === undefined ||
+    typeof minutes !== 'number' ||
+    Number.isNaN(minutes)
+  ) {
     return FALLBACK_TIME;
   }
 
@@ -329,6 +335,82 @@ const buildHitoItems = (
   return items.sort((a, b) => (a.sortTimestamp ?? 0) - (b.sortTimestamp ?? 0));
 };
 
+/** Convierte `DD/MM/YYYY` o `DD-MM-YYYY` a `YYYY-MM-DD` (turnaround LATAM). */
+const normalizeCalendarDateForParse = (dateStr: string): string => {
+  const d = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+    return d;
+  }
+
+  const m = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/.exec(d);
+  if (m) {
+    const day = String(m[1]).padStart(2, '0');
+    const month = String(m[2]).padStart(2, '0');
+    return `${m[3]}-${month}-${day}`;
+  }
+
+  return d;
+};
+
+/** `YYYY-MM-DD` + hora local del payload (sin offset) desde ISO tipo `2025-12-01T10:30:00`. */
+const splitIsoLikeDateTime = (
+  value?: string | null,
+): { date: string; time: string } | null => {
+  if (!value?.trim()) {
+    return null;
+  }
+
+  const matched = /^(\d{4}-\d{2}-\d{2})[T\s](\d{2}:\d{2}(?::\d{2})?)/.exec(
+    value.trim(),
+  );
+  if (!matched) {
+    return null;
+  }
+
+  return { date: matched[1], time: matched[2] };
+};
+
+type FlightWithOptionalStaIso = Flight & { sta?: string | null };
+
+const resolveStaPartsForPlan = (
+  flight: Flight,
+): { date: string; time: string } | null => {
+  const sd = flight.staDate?.trim();
+  const st = flight.staTime?.trim();
+  if (sd && st) {
+    return { date: sd, time: st };
+  }
+
+  const staIso = (flight as FlightWithOptionalStaIso).sta;
+  return splitIsoLikeDateTime(typeof staIso === 'string' ? staIso : null);
+};
+
+const resolveStdPartsForPlan = (
+  flight: Flight,
+): { date: string; time: string } | null => {
+  const sd = flight.stdDate?.trim();
+  const st = flight.stdTime?.trim();
+  if (sd && st) {
+    return { date: sd, time: st };
+  }
+
+  return splitIsoLikeDateTime(flight.std);
+};
+
+/** Fecha+hora local para diff; acepta `HH:mm` o `HH:mm:ss` (sin añadir `:00` dos veces). */
+const parseLocalDateTime = (dateStr: string, timeStr: string): Date | null => {
+  const d = normalizeCalendarDateForParse(dateStr.trim());
+  const t = timeStr.trim();
+  if (!d || !t) {
+    return null;
+  }
+
+  const colons = (t.match(/:/g) ?? []).length;
+  const iso = colons >= 2 ? `${d}T${t}` : `${d}T${t}:00`;
+  const parsed = new Date(iso);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
 const getMinutesDiff = (
   startDate?: string | null,
   startTime?: string | null,
@@ -339,9 +421,9 @@ const getMinutesDiff = (
     return null;
   }
 
-  const start = new Date(`${startDate}T${startTime}:00`);
-  const end = new Date(`${endDate}T${endTime}:00`);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+  const start = parseLocalDateTime(startDate, startTime);
+  const end = parseLocalDateTime(endDate, endTime);
+  if (!start || !end) {
     return null;
   }
 
@@ -409,6 +491,14 @@ export const createFlightInfoPanelViewModel = (
       availableEndDate,
       availableEndTime,
     );
+  /** Ventana planificada STA→STD (fija). Fechas DD/MM, ISO en `std`/`sta`, TAT como respaldo. */
+  const staParts = resolveStaPartsForPlan(flight);
+  const stdParts = resolveStdPartsForPlan(flight);
+  const planStaStdMinutes =
+    staParts && stdParts
+      ? getMinutesDiff(staParts.date, staParts.time, stdParts.date, stdParts.time)
+      : null;
+  const tempoPlanMinutes = planStaStdMinutes ?? tatMinutes ?? null;
   const taskImpact = resolveTaskImpactSummary(timelineTasks, nowTimestamp);
   const availableTime = resolveAvailableTime({
     endDate: availableEndDate,
@@ -499,7 +589,7 @@ export const createFlightInfoPanelViewModel = (
       wchrArrival: formatCount(flight.wchrArrival),
       wchrDeparture: formatCount(flight.wchrDeparture),
       routeType: ganttFlight?.tatType ?? flight.tatType ?? null,
-      tempoPlan: formatMinutesToTime(tatMinutes),
+      tempoPlan: formatMinutesToTime(tempoPlanMinutes),
     },
     timeline: {
       staDate: flight.staDate,

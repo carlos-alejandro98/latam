@@ -59,6 +59,11 @@ export interface FlightGanttTask {
   ultimoUsuario: string | null;
   ultimoEvento: GanttDateTime;
   notas: string | null;
+  /**
+   * Si es `false`, la tarea no se muestra en el listado/barras del Gantt frontal.
+   * Ausente o `true`: se muestra (compatibilidad con APIs sin el campo).
+   */
+  visibleOnFront?: boolean;
 }
 
 export interface FlightGanttSummary {

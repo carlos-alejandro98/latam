@@ -24,7 +24,6 @@ import {
   getResolvedFlightListPanelWidth,
 } from '@/presentation/components/flight-list';
 import { useFlightRealtimeUpdates } from '@/presentation/hooks/use-flight-realtime-updates';
-import { useGanttStream } from '@/presentation/hooks/use-gantt-stream';
 import { useCommentsDrawerController } from '@/presentation/controllers/use-comments-drawer-controller';
 import { useFlightInfoPanelController } from '@/presentation/controllers/use-flight-info-panel-controller';
 import { useFlightListController } from '@/presentation/controllers/use-flight-list-controller';
@@ -450,7 +449,6 @@ export const HomeScreen = () => {
   );
 
   useFlightRealtimeUpdates();
-  useGanttStream(selectedFlightId);
 
   const interactionSoftDefault =
     theme?.tokens?.color?.interaction?.softDefault ?? '#2c31c9';

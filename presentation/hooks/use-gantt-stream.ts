@@ -2,63 +2,48 @@ import { useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
 
 import { ENV } from '@/config/environment';
-import { container } from '@/dependencyInjection/container';
-import { FlightsHttpClient } from '@/infrastructure/http/flights-http-client';
+import { axiosClient } from '@/infrastructure/api/axios-client';
+import {
+  fetchFlightGantt,
+  updateGanttData,
+} from '@/store/slices/flight-gantt-slice';
 import type { AppDispatch } from '@/store';
-import { updateGanttData } from '@/store/slices/flight-gantt-slice';
-
-// Los logs del stream se emiten siempre, independiente de ENV.enableLogs,
-// para que el equipo pueda diagnosticar problemas de conectividad en cualquier entorno.
-const PREFIX = '[GanttStream]';
-const log = (...args: unknown[]) => console.log(PREFIX, ...args);
-const warn = (...args: unknown[]) => console.warn(PREFIX, ...args);
-const logError = (...args: unknown[]) => console.error(PREFIX, ...args);
+import type { FlightGantt } from '@/domain/entities/flight-gantt';
 
 const SSE_PATH = '/api/v1/tracking/active-flights/stream';
 const INTERVAL_SECONDS = 5;
 const HEARTBEAT_INTERVAL = 20;
-/** Reconectar si no llega ningún evento SSE dentro de esta ventana */
+/** Force reconnect if no SSE event received within this window */
 const STALE_TIMEOUT_MS = 45_000;
 const BACKOFF_BASE_MS = 1_000;
 const BACKOFF_MAX_MS = 30_000;
-/**
- * Tiempo de espera antes de ejecutar la recarga del gantt tras recibir un evento.
- * Colapsa múltiples eventos que lleguen en ráfaga en una sola llamada HTTP.
- */
-const RELOAD_DEBOUNCE_MS = 400;
 
 /**
- * Se conecta al stream SSE de vuelos activos y mantiene el gantt del vuelo
- * seleccionado actualizado en tiempo real, sin causar parpadeos de carga.
+ * Connects to the active-flights SSE stream and keeps the gantt for the
+ * active flight up-to-date without any loading flash.
  *
- * Ciclo de vida:
- * - Abre una nueva conexión cada vez que cambia `activeFlightId`.
- * - Cierra limpiamente la conexión anterior antes de abrir la nueva.
- * - Reconecta con backoff exponencial + jitter ante error o timeout de inactividad.
- * - Destruye todo al desmontar el componente.
+ * Lifecycle:
+ * - Opens a new connection each time `activeFlightId` changes.
+ * - Cleanly closes the previous connection before opening a new one.
+ * - Reconnects with exponential backoff + jitter on error or stale timeout.
+ * - Fully tears down on unmount.
  */
 export function useGanttStream(
   activeFlightId: string | null | undefined,
 ): void {
   const dispatch = useDispatch<AppDispatch>();
 
-  // Ref estable para que los event handlers siempre vean el flightId más reciente
+  // Keep a stable mutable ref so event handlers always see the latest flightId
   const activeFlightIdRef = useRef<string | null | undefined>(activeFlightId);
   activeFlightIdRef.current = activeFlightId;
 
   useEffect(() => {
-    if (!activeFlightId) {
-      log('No hay vuelo activo seleccionado, no se abre el stream.');
-      return;
-    }
-
-    log(`Iniciando stream para el vuelo: ${activeFlightId}`);
+    if (!activeFlightId) return;
 
     let mounted = true;
     let es: EventSource | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let staleTimer: ReturnType<typeof setTimeout> | null = null;
-    let reloadDebounceTimer: ReturnType<typeof setTimeout> | null = null;
     let retryCount = 0;
 
     // ── Helpers ────────────────────────────────────────────────────────────
@@ -77,27 +62,17 @@ export function useGanttStream(
       }
     };
 
-    const clearReloadDebounce = () => {
-      if (reloadDebounceTimer) {
-        clearTimeout(reloadDebounceTimer);
-        reloadDebounceTimer = null;
-      }
-    };
-
     const closeEs = () => {
       if (es) {
-        log('Cerrando conexión SSE existente.');
         es.close();
         es = null;
       }
     };
 
     const teardown = () => {
-      log(`Destruyendo stream del vuelo: ${activeFlightId}`);
       mounted = false;
       clearReconnectTimer();
       clearStaleTimer();
-      clearReloadDebounce();
       closeEs();
     };
 
@@ -105,49 +80,27 @@ export function useGanttStream(
       clearStaleTimer();
       staleTimer = setTimeout(() => {
         if (!mounted) return;
-        warn('La conexión lleva demasiado tiempo sin recibir eventos. Reconectando...');
+        console.log('[GanttStream] Stale connection — reconnecting');
         scheduleReconnect();
       }, STALE_TIMEOUT_MS);
     };
 
-    /**
-     * Recarga el gantt del vuelo activo llamando directamente al use case
-     * y despachando updateGanttData — sin activar loading:true en el store,
-     * evitando así que el componente gantt parpadee o se desmonte durante la actualización.
-     */
+    /** Silently push new gantt data into the store (no loading flash). */
+    const applyGanttUpdate = (data: FlightGantt) => {
+      if (mounted) dispatch(updateGanttData(data));
+    };
+
+    /** Re-fetch gantt for the active flight and push silently. */
     const reloadGantt = (flightId: string) => {
-      log(`► RECARGANDO gantt del vuelo: ${flightId}`);
-      container.getFlightGanttUseCase
-        .execute(flightId)
-        .then((data) => {
-          if (!mounted) {
-            log(`✗ Respuesta descartada — componente desmontado (vuelo: ${flightId})`);
-            return;
-          }
-          log(`✓ Gantt recibido: ${data.tasks.length} tareas | flight.flightId en respuesta: ${data.flight?.flightId ?? 'N/A'}`);
-          dispatch(updateGanttData(data));
-          log(`✓ updateGanttData despachado al store — la gantt debería re-renderizarse`);
-        })
-        .catch((err: unknown) => {
-          logError(`✗ Error HTTP al recargar gantt del vuelo ${flightId}:`, err);
+      dispatch(fetchFlightGantt(flightId))
+        .unwrap()
+        .then(applyGanttUpdate)
+        .catch(() => {
+          /* keep existing data on error */
         });
     };
 
-    /**
-     * Versión con debounce de reloadGantt.
-     * Si llegan múltiples eventos seguidos (ráfaga al conectarse), colapsa
-     * todas las llamadas en una sola que se ejecuta tras RELOAD_DEBOUNCE_MS.
-     */
-    const scheduleReload = (flightId: string, reason: string) => {
-      clearReloadDebounce();
-      log(`⏳ Recarga programada en ${RELOAD_DEBOUNCE_MS}ms por evento '${reason}' (vuelo activo: ${flightId})`);
-      reloadDebounceTimer = setTimeout(() => {
-        if (!mounted) return;
-        reloadGantt(flightId);
-      }, RELOAD_DEBOUNCE_MS);
-    };
-
-    // ── Reconexión con backoff exponencial + jitter ──────────────────────
+    // ── Reconnect with exponential backoff + jitter ─────────────────────
 
     const scheduleReconnect = () => {
       if (!mounted) return;
@@ -159,102 +112,62 @@ export function useGanttStream(
       );
       const delay = backoff + Math.random() * 1000;
       retryCount += 1;
-      log(`Reconectando en ${Math.round(delay)}ms (intento #${retryCount})`);
+      console.log(
+        `[GanttStream] Reconnecting in ${Math.round(delay)}ms (attempt ${retryCount})`,
+      );
       reconnectTimer = setTimeout(() => {
         if (mounted) connect(); // eslint-disable-line @typescript-eslint/no-use-before-define
       }, delay);
     };
 
-    // ── Extrae el flightId del payload de un evento SSE ──────────────────
-
-    const extractFlightId = (raw: string): string | undefined => {
-      try {
-        const payload = JSON.parse(raw) as Record<string, unknown>;
-        return (
-          (payload.flightId as string | undefined) ??
-          (payload.flight_id as string | undefined) ??
-          (payload.id as string | undefined)
-        );
-      } catch {
-        return undefined;
-      }
-    };
-
-    // ── Conexión SSE ─────────────────────────────────────────────────────
+    // ── SSE Connection ───────────────────────────────────────────────────
 
     const connect = () => {
       if (!mounted) return;
       closeEs();
 
-      // Se usa FlightsHttpClient (que apunta a flightsApiBaseUrl) para leer
-      // el token, ya que el SSE también apunta al mismo servidor de vuelos.
-      const baseUrl = ENV.flightsApiBaseUrl ?? '';
+      const baseUrl =
+        ENV.flightsApiBaseUrl ??
+        (ENV as Record<string, unknown>).apiBaseUrl ??
+        '';
       const url = `${baseUrl}${SSE_PATH}?interval_seconds=${INTERVAL_SECONDS}&heartbeat_interval=${HEARTBEAT_INTERVAL}`;
 
-      // EventSource no soporta headers personalizados — se adjunta el Bearer token como query param
-      const authHeader = FlightsHttpClient.defaults.headers.common[
+      // EventSource does not support custom headers — append Bearer token as query param
+      const authHeader = axiosClient.defaults.headers.common[
         'Authorization'
       ] as string | undefined;
       const token = authHeader?.startsWith('Bearer ')
         ? authHeader.slice(7)
         : undefined;
-
-      if (!token) {
-        warn('No se encontró token de autenticación. El stream puede ser rechazado por el servidor.');
-      }
-
       const finalUrl = token
         ? `${url}&token=${encodeURIComponent(token)}`
         : url;
 
-      log(`Abriendo conexión SSE → ${baseUrl}${SSE_PATH} | token presente: ${!!token}`);
-
       es = new EventSource(finalUrl);
-      log(`◎ EventSource creado — readyState: ${es.readyState} (0=CONNECTING, 1=OPEN, 2=CLOSED)`);
       resetStaleTimer();
 
-      es.onopen = () => {
-        log(`◎ EventSource.onopen — conexión abierta. readyState: ${es?.readyState}`);
-      };
-
-      // Listener genérico: captura TODOS los eventos SSE sin importar su nombre.
-      // Esto es necesario porque el EventSource de los navegadores solo dispara
-      // addEventListener('nombre') si el servidor envía exactamente "event: nombre".
-      // Con el listener de 'message' atrapamos cualquier evento que use "data:" sin "event:".
-      es.addEventListener('message', (event: MessageEvent) => {
-        if (!mounted) return;
-        resetStaleTimer();
-        const fid = activeFlightIdRef.current;
-        log(`◉ Evento 'message' — lastEventId: "${event.lastEventId}" | data: ${String(event.data).slice(0, 200)}`);
-        if (!fid) {
-          log(`  → Sin vuelo activo, evento ignorado`);
-          return;
-        }
-        scheduleReload(fid, 'message');
-      });
-
-      es.addEventListener('connected', (event: MessageEvent) => {
+      es.addEventListener('connected', () => {
         if (!mounted) return;
         retryCount = 0;
         resetStaleTimer();
         const fid = activeFlightIdRef.current;
-        log(`◉ Evento 'connected' — data: ${String(event.data).slice(0, 200)}`);
-        log(`  → Cargando gantt inicial del vuelo: ${fid ?? 'ninguno'}`);
-        if (fid) reloadGantt(fid);
+        if (fid) void dispatch(fetchFlightGantt(fid));
       });
 
-      // Listeners nombrados — se mantienen para los servidores que sí envían "event: flight_added", etc.
-      const handleNamedEvent = (event: MessageEvent) => {
+      es.addEventListener('flight_updated', (event: MessageEvent) => {
         if (!mounted) return;
         resetStaleTimer();
         const fid = activeFlightIdRef.current;
-        log(`◉ Evento nombrado '${event.type}' — lastEventId: "${event.lastEventId}" | data: ${String(event.data).slice(0, 200)}`);
-        if (!fid) {
-          log(`  → Sin vuelo activo, evento ignorado`);
-          return;
+        if (!fid) return;
+        try {
+          const payload = JSON.parse(event.data as string) as {
+            flightId?: string;
+          };
+          if (payload.flightId === fid) reloadGantt(fid);
+        } catch {
+          // malformed payload — ignore
         }
-        scheduleReload(fid, event.type);
-      };
+      });
 
       es.addEventListener('flight_updated', handleNamedEvent);
       es.addEventListener('flight_added', handleNamedEvent);
@@ -263,28 +176,24 @@ export function useGanttStream(
       es.addEventListener('heartbeat', (event: MessageEvent) => {
         if (!mounted) return;
         resetStaleTimer();
-        const fid = activeFlightIdRef.current;
-        log(`♡ Heartbeat recibido — data: ${String(event.data).slice(0, 80)}`);
-        if (fid) scheduleReload(fid, 'heartbeat');
       });
 
-      es.addEventListener('error', (event) => {
+      es.addEventListener('error', () => {
         if (!mounted) return;
-        logError(`✗ Error en la conexión SSE — readyState: ${es?.readyState} (0=CONNECTING, 1=OPEN, 2=CLOSED)`, event);
         clearStaleTimer();
         closeEs();
         scheduleReconnect();
       });
     };
 
-    // ── Inicio ────────────────────────────────────────────────────────────
+    // ── Boot ─────────────────────────────────────────────────────────────
 
-    // Abre el stream — el evento 'connected' del servidor cargará el gantt inicial
-    log(`Abriendo stream para el vuelo: ${activeFlightId}`);
+    // Immediately load gantt for the newly selected flight, then open stream
+    void dispatch(fetchFlightGantt(activeFlightId));
     connect();
 
     return teardown;
 
-    // Se re-ejecuta el efecto completo (cierra el stream viejo, abre uno nuevo) al cambiar el vuelo
+    // Re-run the entire effect (close old stream, open new one) on flightId change
   }, [activeFlightId, dispatch]); // eslint-disable-line react-hooks/exhaustive-deps
 }

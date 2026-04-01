@@ -1,5 +1,5 @@
-import type { useTheme } from 'styled-components';
 import type { PanelColors } from './flight-list.types';
+import type { useTheme } from 'styled-components';
 
 /**
  * Mapea el theme de styled-components a los colores del panel FlightList.

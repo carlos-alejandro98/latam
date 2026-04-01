@@ -261,8 +261,8 @@ export const CommentsDrawer = ({
     setTaskActionLoading(true);
     setTaskActionError(null);
     try {
-      await onStartTask?.(selectedProcess.taskInstanceId, endTime);
-      await onFinishTask?.(selectedProcess.taskInstanceId, endTime);
+      // Mismo criterio que mobile/tablet: un solo PATCH inicio+fin (evita carrera start+finish).
+      await onUpdateTask?.(selectedProcess.taskInstanceId, endTime, endTime);
       setCurrentStatus('COMPLETADA');
     } catch {
       setTaskActionError('Error al completar el hito. Intenta de nuevo.');
@@ -273,8 +273,7 @@ export const CommentsDrawer = ({
     canManageTaskActions,
     selectedProcess,
     taskActionLoading,
-    onStartTask,
-    onFinishTask,
+    onUpdateTask,
     endTime,
   ]);
 

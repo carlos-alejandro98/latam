@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { renderHook } from '@testing-library/react-native';
+import { act, renderHook } from '@testing-library/react-native';
 import { useDispatch } from 'react-redux';
 
 import { VIEWER_TASK_ACTION_RESTRICTION_MESSAGE } from '@/domain/services/flight-task-permissions';
@@ -75,5 +75,92 @@ describe('useFlightTaskActions', () => {
     expect(finishTask).not.toHaveBeenCalled();
     expect(updateTaskTimes).not.toHaveBeenCalled();
     expect(patchTaskMock).not.toHaveBeenCalled();
+  });
+
+  it('completeHitoTask sends one PATCH (updateTaskTimes) for marco when hito is pending', async () => {
+    (useAuthSelector as jest.Mock).mockReturnValue({
+      session: null,
+      role: 'admin',
+      userName: '',
+      userPhotoUrl: '',
+    });
+    (updateTaskTimes as jest.Mock).mockResolvedValue({
+      success: true,
+      instanceId: 'hito-1',
+    });
+
+    const { result } = renderHook(() =>
+      useFlightTaskActions({
+        flight: {
+          flightId: 'flight-1',
+          std: '2026-03-24T10:00:00Z',
+        } as never,
+        patchTask: patchTaskMock,
+        loadFlightGantt: loadFlightGanttMock,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.completeHitoTask(
+        {
+          instanceId: 'hito-1',
+          title: 'Marco',
+          plannedStartTime: '10:00',
+          plannedEndTime: '10:05',
+        },
+        '11:30',
+        false,
+      );
+    });
+
+    expect(startTask).not.toHaveBeenCalled();
+    expect(finishTask).not.toHaveBeenCalled();
+    expect(updateTaskTimes).toHaveBeenCalledTimes(1);
+    expect(updateTaskTimes).toHaveBeenCalledWith(
+      'hito-1',
+      '11:30',
+      '11:30',
+      '2026-03-24T10:00:00Z',
+    );
+    expect(loadFlightGanttMock).toHaveBeenCalledWith('flight-1');
+  });
+
+  it('completeHitoTask only calls finish when hito already has real start', async () => {
+    (useAuthSelector as jest.Mock).mockReturnValue({
+      session: null,
+      role: 'admin',
+      userName: '',
+      userPhotoUrl: '',
+    });
+    (finishTask as jest.Mock).mockResolvedValue({
+      status_nuevo: 'COMPLETED',
+    });
+
+    const { result } = renderHook(() =>
+      useFlightTaskActions({
+        flight: {
+          flightId: 'flight-1',
+          std: '2026-03-24T10:00:00Z',
+        } as never,
+        patchTask: patchTaskMock,
+        loadFlightGantt: loadFlightGanttMock,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.completeHitoTask(
+        {
+          instanceId: 'hito-2',
+          title: 'Marco',
+          startTimeLabel: '10:00',
+          plannedEndTime: '10:05',
+        },
+        '11:00',
+        true,
+      );
+    });
+
+    expect(finishTask).toHaveBeenCalledTimes(1);
+    expect(updateTaskTimes).not.toHaveBeenCalled();
   });
 });

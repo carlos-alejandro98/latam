@@ -5,6 +5,7 @@ import type { FlightGanttTask } from '@/domain/entities/flight-gantt';
 import {
   buildTimelineDomain,
   buildTimelineRows,
+  filterTasksVisibleOnFront,
   getRealBarColor,
 } from './flight-gantt-timeline.utils';
 
@@ -224,5 +225,19 @@ describe('flight-gantt-timeline.utils', () => {
 
     expect(row.realRange?.endMinute).toBe(612);
     expect(getRealBarColor(row)).toBe('#C8001E');
+  });
+
+  it('drops tasks when visibleOnFront is false', () => {
+    const filtered = filterTasksVisibleOnFront([
+      buildTask({ instanceId: 'a', taskId: 't1' }),
+      buildTask({
+        instanceId: 'b',
+        taskId: 't2',
+        visibleOnFront: false,
+      }),
+    ]);
+
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].taskId).toBe('t1');
   });
 });

@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "AptoTatGantt",
-    "slug": "AptoTatGantt",
+    "name": "Compass",
+    "slug": "Compass",
     "version": "1.0.0",
     "orientation": "default",
-    "icon": "./presentation/assets/images/icon.png",
+    "icon": "./presentation/assets/logos/icons/128-dark.png",
     "scheme": "compass",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -15,9 +15,9 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./presentation/assets/images/android-icon-background.png",
-        "backgroundImage": "./presentation/assets/images/android-icon-background.png",
-        "monochromeImage": "./presentation/assets/images/android-icon-background.png"
+        "foregroundImage": "./presentation/assets/logos/icons/128-dark.png",
+        "backgroundImage": "./presentation/assets/logos/icons/128-dark.png",
+        "monochromeImage": "./presentation/assets/logos/icons/128-dark.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -25,14 +25,14 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./presentation/assets/images/favicon.png"
+      "favicon": "./presentation/assets/logos/icons/32-light.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./presentation/assets/images/splash-icon.png",
+          "image": "./presentation/assets/logos/icons/128-dark.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",
@@ -41,7 +41,15 @@
           }
         }
       ],
-      "expo-font"
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./presentation/assets/fonts/LatamSansRegular.ttf",
+            "./presentation/assets/fonts/LatamSansBold.ttf"
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

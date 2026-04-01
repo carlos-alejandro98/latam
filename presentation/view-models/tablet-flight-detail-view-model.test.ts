@@ -294,4 +294,37 @@ describe('createTabletFlightDetailViewModel', () => {
     expect(task.startTimeLabel).toBe('10:05');
     expect(task.endTimeLabel).toBe('10:20');
   });
+
+  it('omits TASK and HITO rows when visibleOnFront is false', () => {
+    const result = createTabletFlightDetailViewModel(
+      baseFlight,
+      buildGantt([
+        buildTask({
+          instanceId: 'visible-task',
+          taskName: 'Visible task',
+        }),
+        buildTask({
+          instanceId: 'hidden-task',
+          taskName: 'Hidden task',
+          visibleOnFront: false,
+        }),
+        buildTask({
+          instanceId: 'visible-hito',
+          taskName: 'Visible hito',
+          tipoEvento: 'HITO',
+        }),
+        buildTask({
+          instanceId: 'hidden-hito',
+          taskName: 'Hidden hito',
+          tipoEvento: 'HITO',
+          visibleOnFront: false,
+        }),
+      ]),
+    );
+
+    expect(result.tasks.map((t) => t.instanceId)).toEqual([
+      'visible-task',
+      'visible-hito',
+    ]);
+  });
 });

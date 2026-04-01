@@ -127,6 +127,18 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children, allowedRoles }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /**
+   * Tras el primer chequeo, mantener `isAuthenticated` alineado con Redux.
+   * Si el usuario cierra sesión en esta pantalla, `session` pasa a null pero el
+   * estado local seguía en true y la ruta protegida no redirigía a /login (nativo).
+   */
+  useEffect(() => {
+    if (isCheckingSession) return;
+    if (!session?.accessToken) {
+      setIsAuthenticated(false);
+    }
+  }, [isCheckingSession, session?.accessToken]);
+
   // Redirect to login when unauthenticated, or to home if role is not allowed
   useEffect(() => {
     if (isCheckingSession) return;

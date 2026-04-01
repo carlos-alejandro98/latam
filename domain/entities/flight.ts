@@ -23,6 +23,8 @@ export interface Flight {
   etdDate: string;
 
   ata: string | null;
+  /** ISO local (p. ej. llegada programada) si la API no envía `staDate`/`staTime` por separado. */
+  sta?: string | null;
   std: string; // ISO timestamp
   atd: string | null;
 

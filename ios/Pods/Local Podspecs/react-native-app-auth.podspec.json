@@ -1,0 +1,23 @@
+{
+  "name": "react-native-app-auth",
+  "version": "8.1.0",
+  "summary": "React Native bridge for AppAuth for supporting any OAuth 2 provider",
+  "license": "MIT",
+  "authors": "Nearform Commerce (https://commerce.nearform.com)",
+  "homepage": "https://github.com/FormidableLabs/react-native-app-auth",
+  "platforms": {
+    "ios": "10.0"
+  },
+  "source": {
+    "git": "https://github.com/FormidableLabs/react-native-app-auth.git",
+    "tag": "v8.1.0"
+  },
+  "source_files": "ios/**/*.{h,m}",
+  "requires_arc": true,
+  "dependencies": {
+    "React-Core": [],
+    "AppAuth": [
+      ">= 1.7.6"
+    ]
+  }
+}

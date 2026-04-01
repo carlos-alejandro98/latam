@@ -1,19 +1,22 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Pressable, View, useWindowDimensions } from 'react-native';
 
+import { useAuthSelector } from '@/presentation/adapters/redux/use-auth-selector';
 import { AppHeader } from '@/presentation/components/app-header';
 import { getResolvedFlightListPanelWidth } from '@/presentation/components/flight-list';
 import { TabletFlightDetail } from '@/presentation/components/tablet-flight-detail';
 import { TabletFlightList } from '@/presentation/components/tablet-flight-list';
+import { useAuthController } from '@/presentation/controllers/use-auth-controller';
 import { useFlightListController } from '@/presentation/controllers/use-flight-list-controller';
 import { useHomeController } from '@/presentation/controllers/use-home-controller';
 import { useTabletFlightDetailController } from '@/presentation/controllers/use-tablet-flight-detail-controller';
 import { useFlightRealtimeUpdates } from '@/presentation/hooks/use-flight-realtime-updates';
 import { FlightGanttEmptyState } from '@/presentation/screens/homeScreen/components/flight-gantt-empty-state';
+import type { AuthRole } from '@/store/slices/auth-slice';
 
 import { styles } from './tablet-home-screen.styles';
 
-export const TabletHomeScreen = (): JSX.Element => {
+export const TabletHomeScreen = () => {
   const { width } = useWindowDimensions();
   const panelWidth = getResolvedFlightListPanelWidth(width);
   const {
@@ -27,6 +30,16 @@ export const TabletHomeScreen = (): JSX.Element => {
   } = useHomeController();
   const flightListController = useFlightListController({ flights });
   const tabletFlightDetail = useTabletFlightDetailController(selectedFlight);
+  const { logout } = useAuthController();
+  const { userName, role, userPhotoUrl } = useAuthSelector();
+  const roleLabels: Record<AuthRole, string> = {
+    admin: 'Admin',
+    viewer: 'Viewer',
+    controller: 'Controller',
+    ['above_the_wing']: 'Embarque',
+    ['below_the_wing']: 'DOT',
+  };
+  const userRoleLabel = role ? (roleLabels[role] ?? role) : '';
   const isFlightsLoading = loading || initialLoading;
   const translateX = useRef(new Animated.Value(0)).current;
   const panelPositionInitialized = useRef(false);
@@ -72,7 +85,13 @@ export const TabletHomeScreen = (): JSX.Element => {
         onHelpPress={() => {}}
         onNotificationPress={() => {}}
         onAvatarPress={() => {}}
+        onLogoutPress={() => {
+          void logout();
+        }}
         showNotification={false}
+        userName={userName}
+        userRole={userRoleLabel}
+        userPhotoUrl={userPhotoUrl || undefined}
       />
       <View style={styles.content}>
         {selectedFlight ? (

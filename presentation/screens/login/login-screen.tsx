@@ -1,13 +1,13 @@
+import { useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import {
-  Image,
   ImageBackground,
   Pressable,
   StyleSheet,
   View,
+  useWindowDimensions,
 } from 'react-native';
-
-import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch } from 'react-redux';
 
 import { IS_WEB } from '@/config/platform';
@@ -18,12 +18,16 @@ import { useAuthController } from '@/presentation/controllers/use-auth-controlle
 import type { AppDispatch } from '@/store';
 import { setRole, setSession } from '@/store/slices/auth-slice';
 
-// TODO: Remove this flag when Azure AD is configured as Single-Page Application
-const ENABLE_DEV_SKIP_LOGIN = true;
+import { LoginCompassLogo } from './login-compass-logo';
+import { LoginLatamFooterLogo } from './login-latam-footer-logo';
+
+/** Alineado con tablet vs mobile en otras pantallas nativas (p. ej. `width < 768`). */
+const LOGIN_COMPASS_LOGO_TABLET_MIN_WIDTH = 768;
 
 const LATAM_RED = '#D51146';
 const CARD_BORDER_TOP = '#0D12AB';
-const OVERLAY_COLOR = 'rgba(13, 18, 171, 0.35)';
+/** Velo neutro (sin tinte azul). El overlay azul anterior teñía toda la foto y apagaba los blancos. */
+const OVERLAY_COLOR = 'rgba(0, 0, 0, 0.08)';
 
 /**
  * OAuth login screen matching Figma design.
@@ -33,7 +37,80 @@ const OVERLAY_COLOR = 'rgba(13, 18, 171, 0.35)';
 export const LoginScreen: React.FC = () => {
   const router = useRouter();
   const dispatch = useDispatch<AppDispatch>();
+  const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
   const { error, loading, login } = useAuthController();
+
+  const compassLogoStyle = useMemo(() => {
+    if (IS_WEB) {
+      return styles.compassLogoWeb;
+    }
+    const isTablet = windowWidth >= LOGIN_COMPASS_LOGO_TABLET_MIN_WIDTH;
+    return isTablet ? styles.compassLogoTablet : styles.compassLogoMobile;
+  }, [windowWidth]);
+
+  const welcomeTitleVariant = useMemo<
+    'display-lg' | 'heading-lg' | 'heading-md'
+  >(() => {
+    if (IS_WEB) {
+      return 'heading-md';
+    }
+    return windowWidth >= LOGIN_COMPASS_LOGO_TABLET_MIN_WIDTH
+      ? 'display-lg'
+      : 'heading-lg';
+  }, [windowWidth]);
+
+  /** "Acesse a ferramenta…": display-md solo en tablet nativa; web y mobile siguen body-lg. */
+  const turnaroundTaglineVariant = useMemo<'body-lg' | 'display-md'>(() => {
+    if (IS_WEB) {
+      return 'body-lg';
+    }
+    return windowWidth >= LOGIN_COMPASS_LOGO_TABLET_MIN_WIDTH
+      ? 'display-md'
+      : 'body-lg';
+  }, [windowWidth]);
+
+  /** Footer: gap 24 solo en móvil nativo; web y tablet nativa siguen en 32. */
+  const footerGap = useMemo(() => {
+    if (IS_WEB) {
+      return 32;
+    }
+    return windowWidth >= LOGIN_COMPASS_LOGO_TABLET_MIN_WIDTH ? 32 : 24;
+  }, [windowWidth]);
+
+  /** Copyright footer: body-lg solo en móvil nativo; web y tablet nativa heading-md. */
+  const copyrightTextVariant = useMemo<'body-lg' | 'heading-md'>(() => {
+    if (IS_WEB) {
+      return 'heading-md';
+    }
+    return windowWidth >= LOGIN_COMPASS_LOGO_TABLET_MIN_WIDTH
+      ? 'heading-md'
+      : 'body-lg';
+  }, [windowWidth]);
+
+  /** Fondo: cover solo en móvil nativo; web y tablet nativa stretch. */
+  const backdropResizeMode = useMemo<'cover' | 'stretch'>(() => {
+    if (IS_WEB) {
+      return 'stretch';
+    }
+    return windowWidth >= LOGIN_COMPASS_LOGO_TABLET_MIN_WIDTH
+      ? 'stretch'
+      : 'cover';
+  }, [windowWidth]);
+
+  /**
+   * Área principal del card: tablet nativa marginTop 60; sin margin en web/móvil.
+   * paddingTop 90 móvil nativo, 101 web.
+   */
+  const mainSpacingStyle = useMemo(() => {
+    if (IS_WEB) {
+      return { marginTop: 0, paddingTop: 101 };
+    }
+    if (windowWidth >= LOGIN_COMPASS_LOGO_TABLET_MIN_WIDTH) {
+      return { marginTop: 60, paddingTop: 0 };
+    }
+    return { marginTop: 0, paddingTop: 90 };
+  }, [windowWidth]);
 
   // Read ?error= param from URL (web only) to show specific messages after redirects.
   const urlError = useMemo<string | null>(() => {
@@ -89,110 +166,106 @@ export const LoginScreen: React.FC = () => {
 
   return (
     <ImageBackground
-      source={require('@/presentation/assets/images/login-background.jpg')}
+      source={require('@/presentation/assets/images/compass-login-backdrop.png')}
       style={styles.background}
-      resizeMode="cover"
+      resizeMode={backdropResizeMode}
     >
-      {/* Blue overlay */}
+      {/* Velo muy suave solo para algo de contraste; la imagen se ve casi a color real */}
       <View style={styles.overlay} />
 
-      {/* Main content */}
+      {/* Main: card centrado; footer aparte al pie de pantalla */}
       <View style={styles.content}>
-        {/* Login Card */}
-        <View style={styles.card}>
-          {/* Logo placeholder */}
-          <View style={styles.logoContainer}>
-            <Text variant="body-md" style={styles.logoPlaceholder}>
-              Logo Compass
-            </Text>
-          </View>
-
-          {/* Title */}
-          <Text variant="heading-lg" style={styles.title}>
-            Bem-vindo à Compass
-          </Text>
-
-          {/* Description */}
-          <Text variant="body-md" style={styles.description}>
-            Acesse a ferramenta de gerenciamento de Turnaround
-          </Text>
-
-          <Text variant="body-md" style={styles.description}>
-            Use suas credenciais da LATAM para fazer login.
-          </Text>
-
-          {/* No-permissions error from redirect */}
-          {urlError ? (
-            <View style={styles.permissionsErrorBox}>
-              <Text variant="body-sm" style={styles.permissionsErrorText}>
-                {urlError}
-              </Text>
+        <View style={[styles.main, mainSpacingStyle]}>
+          {/* Login Card */}
+          <View style={styles.card}>
+            {/* Logo placeholder */}
+            <View style={styles.logoContainer}>
+              <Pressable
+                onPress={() => {
+                  void handleDevSkipLogin();
+                }}
+                style={({ pressed }) => [
+                  styles.devSkipButton,
+                  pressed && styles.devSkipButtonPressed,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Skip login for testing"
+              >
+                <LoginCompassLogo
+                  accessibilityLabel="Compass"
+                  style={compassLogoStyle}
+                />
+              </Pressable>
             </View>
-          ) : null}
 
-          {/* Auth error message */}
-          {error ? (
-            <Text variant="body-sm" style={styles.errorText}>
-              {error}
+            {/* Title */}
+            <Text variant={welcomeTitleVariant} style={styles.title} bold>
+              Bem-vindo à Compass
             </Text>
-          ) : null}
 
-          {/* Login button */}
-          <Pressable
-            disabled={loading}
-            onPress={() => {
-              void login();
-            }}
-            style={({ pressed }) => [
-              styles.loginButton,
-              pressed && styles.loginButtonPressed,
-              loading && styles.loginButtonDisabled,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Login com sua conta LATAM"
-          >
-            {loading ? (
-              <Text variant="label-md" style={styles.loginButtonText}>
-                Carregando...
-              </Text>
-            ) : (
-              <Text variant="label-md" style={styles.loginButtonText}>
-                Login com sua conta LATAM.
-              </Text>
-            )}
-          </Pressable>
+            {/* Description */}
+            <Text variant={turnaroundTaglineVariant} style={styles.description}>
+              Acesse a ferramenta de gerenciamento de Turnaround
+            </Text>
 
-          {/* Temporary Dev Skip Button - Remove when Azure AD is configured */}
-          {ENABLE_DEV_SKIP_LOGIN && (
+            <Text variant={turnaroundTaglineVariant} style={styles.description}>
+              Use suas credenciais da LATAM para fazer login.
+            </Text>
+
+            {/* No-permissions error from redirect */}
+            {urlError ? (
+              <View style={styles.permissionsErrorBox}>
+                <Text variant="body-sm" style={styles.permissionsErrorText}>
+                  {urlError}
+                </Text>
+              </View>
+            ) : null}
+
+            {/* Auth error message */}
+            {error ? (
+              <Text variant="body-sm" style={styles.errorText}>
+                {error}
+              </Text>
+            ) : null}
+
+            {/* Login button */}
             <Pressable
+              disabled={loading}
               onPress={() => {
-                void handleDevSkipLogin();
+                void login();
               }}
               style={({ pressed }) => [
-                styles.devSkipButton,
-                pressed && styles.devSkipButtonPressed,
+                styles.loginButton,
+                pressed && styles.loginButtonPressed,
+                loading && styles.loginButtonDisabled,
               ]}
               accessibilityRole="button"
-              accessibilityLabel="Skip login for testing"
+              accessibilityLabel="Login com sua conta LATAM"
             >
-              <Text variant="label-sm" style={styles.devSkipButtonText}>
-                Saltar Login (Solo Pruebas)
-              </Text>
+              {loading ? (
+                <Text variant="label-md" style={styles.loginButtonText}>
+                  Carregando...
+                </Text>
+              ) : (
+                <Text variant="label-md" style={styles.loginButtonText}>
+                  Login com sua conta LATAM.
+                </Text>
+              )}
             </Pressable>
-          )}
+          </View>
         </View>
 
-        {/* Footer */}
-        <View style={styles.footer}>
+        {/* Footer — pegado al borde inferior del viewport */}
+        <View
+          style={[
+            styles.footer,
+            { gap: footerGap, paddingBottom: Math.max(insets.bottom, 48) },
+          ]}
+        >
           <View style={styles.latamBranding}>
-            <Image
-              source={require('@/presentation/assets/images/latam-logo.jpg')}
-              style={styles.latamLogo}
-              accessibilityLabel="LATAM Airlines logo"
-              resizeMode="contain"
-            />
+            <LoginLatamFooterLogo style={styles.latamLogo} />
           </View>
-          <Text variant="body-sm" style={styles.copyright}>
+          <Text variant={copyrightTextVariant} style={styles.copyright} bold>
             © 2026 LATAM Airlines
           </Text>
         </View>
@@ -214,21 +287,23 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     width: '100%',
-    alignItems: 'center',
+  },
+  main: {
+    flex: 1,
+    width: '100%',
     justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 48,
-    gap: 32,
+    alignItems: 'center',
+    paddingHorizontal: 32,
   },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    borderTopWidth: 4,
+    borderTopWidth: 8,
     borderTopColor: CARD_BORDER_TOP,
-    padding: 24,
-    gap: 16,
-    width: '100%',
-    maxWidth: 480,
+    padding: 48,
+    gap: 24,
+    // width: '100%',
+    // maxWidth: 480,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -236,24 +311,32 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   logoContainer: {
-    borderWidth: 1,
-    borderColor: '#CCCCCC',
-    borderRadius: 4,
-    paddingVertical: 24,
-    paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    // paddingVertical: 8,
+    // width: '100%',
   },
-  logoPlaceholder: {
-    color: '#303030',
-    textAlign: 'center',
+  /** Web: tamaño actual sin cambios (Vertical-COLOR / viewBox 356×192). */
+  compassLogoWeb: {
+    width: 260,
+    height: 140,
+  },
+  compassLogoMobile: {
+    width: 205,
+    height: 110,
+  },
+  compassLogoTablet: {
+    width: 372,
+    height: 200,
   },
   title: {
-    color: '#0A0A0A',
-    fontWeight: '700',
+    color: '#000000',
+    // fontWeight: '700',
+    letterSpacing: 2,
   },
   description: {
-    color: '#303030',
+    color: '#000000',
+    letterSpacing: 2,
   },
   errorText: {
     color: '#D51146',
@@ -292,13 +375,6 @@ const styles = StyleSheet.create({
   },
   devSkipButton: {
     backgroundColor: 'transparent',
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#999999',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   devSkipButtonPressed: {
     backgroundColor: '#F0F0F0',
@@ -309,19 +385,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   footer: {
+    width: '100%',
     alignItems: 'center',
-    gap: 8,
+    paddingTop: 8,
+    paddingHorizontal: 24,
   },
   latamBranding: {
     alignItems: 'center',
     justifyContent: 'center',
   },
   latamLogo: {
-    width: 160,
-    height: 52,
+    width: 200,
+    height: 46,
   },
   copyright: {
     color: '#FFFFFF',
-    opacity: 0.85,
+    opacity: 0.95,
+    textShadowColor: 'rgba(0, 0, 0, 0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
 });

@@ -20,8 +20,8 @@ function contentFitToResizeMode(fit: PlatformContentFit | undefined): ImageResiz
 }
 
 /**
- * Imagen en mobile con `Image` de React Native (evita acoplar la pantalla nativa a expo-image).
- * Los SVG locales vía `require` pueden necesitar PNG o `react-native-svg` si no se renderizan.
+ * Imagen en mobile con `Image` de React Native (evita acoplar pantallas Hangar/FastImage a `expo-image`).
+ * Los SVG locales vía `require` no se renderizan aquí: usar `expo-image` puntual en esa pantalla (p. ej. login).
  */
 export const PlatformImage: React.FC<PlatformImageProps> = ({
   source,
