@@ -1,9 +1,0 @@
-/* Scrollbar oculta: no se muestra ni ocupa espacio. El scroll sigue funcionando (rueda, touch). */
-.flight-list-virtualized-scroll {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.flight-list-virtualized-scroll::-webkit-scrollbar {
-  display: none;
-}
