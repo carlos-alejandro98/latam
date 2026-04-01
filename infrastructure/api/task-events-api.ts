@@ -10,18 +10,7 @@ export interface TaskEventResponse {
   notas?: string | null;
 }
 
-/**
- * Returns the local timezone offset string for the device running the app,
- * e.g. "-03:00" for Brazil (UTC-3), "+01:00" for Spain (UTC+1), etc.
- * This ensures timestamps are interpreted correctly regardless of country.
- */
-const localOffsetStr = (): string => {
-  const offsetMin = -new Date().getTimezoneOffset();
-  const sign = offsetMin >= 0 ? '+' : '-';
-  const absH = String(Math.floor(Math.abs(offsetMin) / 60)).padStart(2, '0');
-  const absM = String(Math.abs(offsetMin) % 60).padStart(2, '0');
-  return `${sign}${absH}:${absM}`;
-};
+
 
 /**
  * Returns the LOCAL date part "YYYY-MM-DD" of a Date object
@@ -46,40 +35,32 @@ const extractDateFromIso = (iso: string): string | null => {
 };
 
 /**
- * Builds an ISO 8601 timestamp with local UTC offset from an "HH:mm" input.
+ * Builds a timestamp string from an "HH:mm" input exactly as typed by the
+ * operator, with NO timezone offset appended.
  *
- * Accepted input formats:
- *   "HH:mm"  — standard masked input (e.g. "17:20")
- *   "HHmm"   — 4 raw digits without colon (e.g. "1720") — safety fallback
+ * The backend treats the value as a local time and must not receive any UTC
+ * offset — adding "-03:00" caused the server to shift the stored time by
+ * 3 hours, which is the bug being fixed here.
  *
  * Date resolution priority:
- *  1. Date extracted from `stdIso` (the flight's STD ISO string) — ensures
- *     tasks belonging to a flight on a different calendar day use the correct date.
+ *  1. Date extracted from `stdIso` — ensures tasks on a different calendar
+ *     day from today use the correct date.
  *  2. Today's local date — fallback when no flight ISO is available.
- *
- * IMPORTANT: This function always uses the caller-supplied time. It never
- * silently substitutes the current system time, so whatever the operator
- * types in the UI is exactly what gets persisted to the backend.
  */
 const buildIso = (timeHhmm: string, stdIso: string | null): string => {
   const now = new Date();
 
-  // Prefer the date from the flight's STD ISO so we don't accidentally shift
-  // the day when the flight belongs to a date other than today.
   const datePart =
     (stdIso ? extractDateFromIso(stdIso) : null) ?? localDatePart(now);
 
-  // Normalise: strip everything except digits, then re-insert the colon.
+  // Normalise: strip non-digits, re-insert colon.
   const digits = timeHhmm.replace(/\D/g, '');
   const hh = digits.slice(0, 2).padStart(2, '0');
   const mm = digits.slice(2, 4).padStart(2, '0');
 
-  // Only build the timestamp when we have exactly 4 meaningful digits.
-  // If the input is empty / incomplete we still honour it with "00:00" so we
-  // never corrupt the stored value with the current clock.
-  const timePart = digits.length >= 4 ? `${hh}:${mm}:00` : `${hh}:${mm}:00`;
-
-  return `${datePart}T${timePart}${localOffsetStr()}`;
+  // Return plain local datetime — no UTC offset — so the backend stores
+  // exactly the time the operator entered.
+  return `${datePart}T${hh}:${mm}:00`;
 };
 
 /** Parse a JSON string safely — returns the original string if parsing fails */
