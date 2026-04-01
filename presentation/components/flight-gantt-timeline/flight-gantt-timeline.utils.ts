@@ -610,25 +610,6 @@ export const buildTimelineRows = (
       nowTimestamp,
     );
 
-    if (!calculatedRange && !realRange) {
-      console.log('[v0] TASK SIN BARRAS:', task.taskName, {
-        inicioProgramado: task.inicioProgramado,
-        finProgramado: task.finProgramado,
-        inicioCalculado: task.inicioCalculado,
-        finCalculado: task.finCalculado,
-        inicioReal: task.inicioReal,
-        finReal: task.finReal,
-        tiempoRelativoInicio: task.tiempoRelativoInicio,
-        tiempoRelativoFin: task.tiempoRelativoFin,
-        varianzaInicio: task.varianzaInicio,
-        varianzaFin: task.varianzaFin,
-        duracionReal: task.duracionReal,
-        estado: task.estado,
-        stdMinute,
-        timelineStartDateMs,
-      });
-    }
-
     return {
       calculatedRange,
       estado: task.estado,

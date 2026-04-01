@@ -208,11 +208,15 @@ export const FlightGanttTimeline = ({
     };
   }, []);
 
+  // Domain only recalculates when flight data or tasks change — NOT every second.
+  // nowTimestamp is intentionally excluded: the domain window (start/end anchors)
+  // is derived from fixed flight timestamps, so ticking every second would
+  // recompute timelineStartDateMs unnecessarily and shift all bar positions.
   const domain = useMemo(
     () =>
       buildTimelineDomain(
         tasks,
-        nowTimestamp,
+        Date.now(),
         staDate,
         staTime,
         etaDate,
@@ -222,9 +226,9 @@ export const FlightGanttTimeline = ({
         etdDate,
         etdTime,
       ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       tasks,
-      nowTimestamp,
       staDate,
       staTime,
       etaDate,
