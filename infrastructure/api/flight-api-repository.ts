@@ -17,6 +17,42 @@ import {
 } from '@/infrastructure/http/flights-http-methods';
 import { getDefaultDateRange } from '@/shared/utils/date-utils';
 
+// Task timestamp as returned by the API — can be a [y,m,d,h,min] tuple OR an ISO string.
+type ApiTaskDateTime = GanttDateTime | string | null;
+
+/**
+ * Converts an API task timestamp to a GanttDateTime tuple.
+ * The API may return either a 5-element numeric tuple [y, m, d, h, min]
+ * or an ISO 8601 string such as "2026-04-01T23:29:00" or "2026-04-01T23:29:00-03:00".
+ * Both forms are normalised to a local-time tuple so the rest of the Gantt
+ * logic (which assumes local time) works correctly.
+ */
+function toGanttDateTime(value: ApiTaskDateTime): GanttDateTime {
+  if (!value) return null;
+
+  // Already a 5-element numeric tuple
+  if (Array.isArray(value)) {
+    if (value.length >= 5) return value as GanttDateTime;
+    return null;
+  }
+
+  // ISO string — parse the *local-time* portion only (strip any UTC/TZ offset).
+  if (typeof value === 'string') {
+    // Match "YYYY-MM-DDTHH:mm" or "YYYY-MM-DD HH:mm" optionally followed by seconds / offset
+    const match = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(value);
+    if (!match) return null;
+    return [
+      Number(match[1]),
+      Number(match[2]),
+      Number(match[3]),
+      Number(match[4]),
+      Number(match[5]),
+    ];
+  }
+
+  return null;
+}
+
 // Shape returned by the new /api/v1/turnarounds/flight/gantt endpoint
 interface TurnaroundApiTask {
   instanceId: string;
@@ -25,14 +61,14 @@ interface TurnaroundApiTask {
   taskType: string;
   phase: string;
   groupFunctional: string;
-  scheduledStart: GanttDateTime;
-  scheduledEnd: GanttDateTime;
+  scheduledStart: ApiTaskDateTime;
+  scheduledEnd: ApiTaskDateTime;
   scheduledDurationMin: number;
-  calculatedStart: GanttDateTime;
-  calculatedEnd: GanttDateTime;
+  calculatedStart: ApiTaskDateTime;
+  calculatedEnd: ApiTaskDateTime;
   calculatedDurationMin: number;
-  actualStart: GanttDateTime;
-  actualEnd: GanttDateTime;
+  actualStart: ApiTaskDateTime;
+  actualEnd: ApiTaskDateTime;
   actualDurationMin: number | null;
   status: string;
   dependencies: string[] | null;
@@ -107,13 +143,13 @@ function mapTurnaroundToFlightGantt(raw: TurnaroundApiResponse): FlightGantt {
     tiempoRelativoFin: null,
     duracionPlanificada: t.scheduledDurationMin,
     baseDurationMin: t.scheduledDurationMin,
-    inicioProgramado: t.scheduledStart,
-    finProgramado: t.scheduledEnd,
+    inicioProgramado: toGanttDateTime(t.scheduledStart),
+    finProgramado: toGanttDateTime(t.scheduledEnd),
     // scheduledStart/scheduledEnd son los tiempos de plan originales — NUNCA cambian.
     // calculatedStart/calculatedEnd son mutados por el backend al guardar tiempos reales,
     // por eso usamos scheduled como fuente de verdad para las columnas "estimadas" de la UI.
-    inicioCalculado: t.scheduledStart,
-    finCalculado: t.scheduledEnd,
+    inicioCalculado: toGanttDateTime(t.scheduledStart),
+    finCalculado: toGanttDateTime(t.scheduledEnd),
     estado: t.status,
     dependencias: t.dependencies ?? [],
     triggerType: '',
@@ -126,8 +162,8 @@ function mapTurnaroundToFlightGantt(raw: TurnaroundApiResponse): FlightGantt {
     estaRetrasada: t.isDelayed,
     minutosDeRetraso: t.delayMinutes ?? 0,
     dependenciasCumplidas: t.dependenciesMet,
-    inicioReal: t.actualStart,
-    finReal: t.actualEnd,
+    inicioReal: toGanttDateTime(t.actualStart),
+    finReal: toGanttDateTime(t.actualEnd),
     duracionReal: t.actualDurationMin,
     varianzaInicio: t.varianceStartMin,
     varianzaFin: t.varianceEndMin,

@@ -366,6 +366,8 @@ export const FlightGanttTimelineRow = memo(
     const realStartMinute = rowData.realRange?.startMinute ?? null;
     const realEndMinute = rowData.realRange?.endMinute ?? null;
 
+
+
     // Real times from backend (inicioReal / finReal)
     const realStart = useMemo(
       () => formatGanttDateTime(rowData.task.inicioReal),
