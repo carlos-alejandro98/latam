@@ -228,6 +228,25 @@ export const HomeScreen = () => {
     [],
   );
 
+  /**
+   * Reloads the gantt silently from the server after a task action succeeds.
+   * Uses the same path as the SSE stream (updateGanttData) so it never
+   * triggers a loading spinner — the optimistic patch already updated the UI.
+   */
+  const reloadGanttFromServer = useCallback(
+    (flightId: string) => {
+      container.getFlightGanttUseCase
+        .execute(flightId)
+        .then((data) => {
+          dispatch(updateGanttData(data));
+        })
+        .catch(() => {
+          // Silently ignore — the optimistic update remains visible
+        });
+    },
+    [dispatch],
+  );
+
   const handleStartTask = useCallback(
     async (taskInstanceId: string, time: string): Promise<void> => {
       if (!canManageTaskActions) {
@@ -440,25 +459,6 @@ export const HomeScreen = () => {
       resolveUpdatedTimeChange,
       reloadGanttFromServer,
     ],
-  );
-
-  /**
-   * Reloads the gantt silently from the server after a task action succeeds.
-   * Uses the same path as the SSE stream (updateGanttData) so it never
-   * triggers a loading spinner — the optimistic patch already updated the UI.
-   */
-  const reloadGanttFromServer = useCallback(
-    (flightId: string) => {
-      container.getFlightGanttUseCase
-        .execute(flightId)
-        .then((data) => {
-          dispatch(updateGanttData(data));
-        })
-        .catch(() => {
-          // Silently ignore — the optimistic update remains visible
-        });
-    },
-    [dispatch],
   );
 
   useFlightRealtimeUpdates();
