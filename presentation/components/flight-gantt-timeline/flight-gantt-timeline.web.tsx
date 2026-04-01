@@ -418,9 +418,15 @@ export const FlightGanttTimeline = ({
   // The ISO has the form "YYYY-MM-DDTHH:mm:ss" (local time) — parse its
   // date/time parts and convert to a timeline minute relative to the domain.
   const pushInMinute = useMemo<number | null>(() => {
-    if (!pushOutTime || !domain.timelineStartDateMs) return null;
+    if (!pushOutTime || !domain.timelineStartDateMs) {
+      console.log('[v0] pushInMinute: missing data. pushOutTime:', pushOutTime, 'domain.timelineStartDateMs:', domain.timelineStartDateMs);
+      return null;
+    }
     const match = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(pushOutTime);
-    if (!match) return null;
+    if (!match) {
+      console.log('[v0] pushInMinute: ISO regex failed for:', pushOutTime);
+      return null;
+    }
     const pushDate = new Date(
       Number(match[1]),
       Number(match[2]) - 1,
@@ -430,7 +436,9 @@ export const FlightGanttTimeline = ({
       0,
       0,
     );
-    return (pushDate.getTime() - domain.timelineStartDateMs) / 60000;
+    const minute = (pushDate.getTime() - domain.timelineStartDateMs) / 60000;
+    console.log('[v0] pushInMinute:', { minute, pushOutTime, pushDate: pushDate.toISOString(), timelineStartDate: new Date(domain.timelineStartDateMs).toISOString(), domain });
+    return minute;
   }, [pushOutTime, domain.timelineStartDateMs]);
 
   const currentRelativeMinute = useMemo(

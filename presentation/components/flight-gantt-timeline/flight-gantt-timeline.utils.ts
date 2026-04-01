@@ -621,7 +621,10 @@ export const buildTimelineMarkers = (
    *  this takes precedence over the tatVueloMinutos-derived position. */
   pushInMinute?: number | null,
 ): TimelineMarker[] => {
+  console.log('[v0] buildTimelineMarkers called with:', { stdMinute, tatVueloMinutos, pushInMinute, currentRelativeMinute });
+  
   if (stdMinute === null) {
+    console.log('[v0] buildTimelineMarkers: stdMinute is null, returning empty');
     return [];
   }
 
@@ -636,6 +639,7 @@ export const buildTimelineMarkers = (
       minute: stdMinute,
     },
   ];
+  console.log('[v0] Added STD marker at minute:', stdMinute);
 
   // PUSH-IN: use the explicit push-back minute if provided, otherwise derive
   // from tatVueloMinutos as a fallback.
@@ -645,6 +649,8 @@ export const buildTimelineMarkers = (
       : tatVueloMinutos && tatVueloMinutos > 0
         ? stdMinute - tatVueloMinutos
         : null;
+
+  console.log('[v0] Resolved PUSH-IN minute:', resolvedPushInMinute, '(explicit pushInMinute:', pushInMinute, ')');
 
   if (resolvedPushInMinute !== null) {
     markers.push({
@@ -657,6 +663,7 @@ export const buildTimelineMarkers = (
       lineStyle: 'dashed',
       minute: resolvedPushInMinute,
     });
+    console.log('[v0] Added PUSH-IN marker');
   }
 
   if (currentRelativeMinute !== null && currentRelativeMinute !== undefined) {
@@ -672,6 +679,7 @@ export const buildTimelineMarkers = (
     });
   }
 
+  console.log('[v0] buildTimelineMarkers returning', markers.length, 'markers:', markers.map(m => ({ id: m.id, minute: m.minute })));
   return markers;
 };
 
