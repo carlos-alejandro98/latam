@@ -96,24 +96,11 @@ const isValidation422 = (error: unknown): boolean => {
 };
 
 const log422Details = (scope: string, error: unknown): void => {
-  if (!axios.isAxiosError(error)) {
-    console.error(`[v0] ${scope} error (non-axios):`, error);
-    return;
-  }
-
-  const responseData = tryParseJson(error.response?.data);
-  const requestBody = tryParseJson(error.config?.data);
-
-  console.error(`[v0] ${scope} FAILED — HTTP ${String(error.response?.status ?? '?')}`, {
+  if (!axios.isAxiosError(error)) return;
+  console.error(`[v0] ${scope} error:`, {
     url: error.config?.url,
-    method: error.config?.method?.toUpperCase(),
-    requestBody,
-    responseStatus: error.response?.status,
-    responseData,
-    validationErrors: (responseData as Record<string, unknown>)?.detail
-      ?? (responseData as Record<string, unknown>)?.errors
-      ?? (responseData as Record<string, unknown>)?.message
-      ?? responseData,
+    status: error.response?.status,
+    data: error.response?.data,
   });
 };
 
@@ -127,7 +114,7 @@ export interface UpdateTaskTimesResponse {
 
 /**
  * Starts a task via POST /api/v1/tasks/{taskInstanceId}/start
- * Body matches Postman: { task_instance_id, started_by, notas }
+ * Sends actual_start built from the time the operator typed in the modal input.
  */
 export const startTask = async (
   taskInstanceId: string,
@@ -136,22 +123,16 @@ export const startTask = async (
 ): Promise<TaskEventResponse> => {
   const body = {
     task_instance_id: taskInstanceId,
+    actual_start: buildIso(time, stdIso),
     started_by: 'operador',
     notas: 'Inicio manual por operador',
   };
 
-  console.log('[v0] startTask request:', {
-    url: `/api/v1/tasks/${taskInstanceId}/start`,
-    body,
-  });
-
   try {
-    const result = await flightsHttpPost<TaskEventResponse>(
+    return await flightsHttpPost<TaskEventResponse>(
       `/api/v1/tasks/${taskInstanceId}/start`,
       body,
     );
-    console.log('[v0] startTask success:', result);
-    return result;
   } catch (error) {
     log422Details('startTask', error);
     throw error;
@@ -160,7 +141,7 @@ export const startTask = async (
 
 /**
  * Finishes a task via POST /api/v1/tasks/{taskInstanceId}/finish
- * Body matches Postman pattern: { task_instance_id, finished_by, notas }
+ * Sends actual_end built from the time the operator typed in the modal input.
  */
 export const finishTask = async (
   taskInstanceId: string,
@@ -169,22 +150,16 @@ export const finishTask = async (
 ): Promise<TaskEventResponse> => {
   const body = {
     task_instance_id: taskInstanceId,
+    actual_end: buildIso(time, stdIso),
     finished_by: 'operador',
     notas: 'Tarea completada sin novedades',
   };
 
-  console.log('[v0] finishTask request:', {
-    url: `/api/v1/tasks/${taskInstanceId}/finish`,
-    body,
-  });
-
   try {
-    const result = await flightsHttpPost<TaskEventResponse>(
+    return await flightsHttpPost<TaskEventResponse>(
       `/api/v1/tasks/${taskInstanceId}/finish`,
       body,
     );
-    console.log('[v0] finishTask success:', result);
-    return result;
   } catch (error) {
     log422Details('finishTask', error);
     throw error;
@@ -206,20 +181,11 @@ export const updateTaskTimes = async (
     actual_end:   endTime   ? buildIso(endTime,   stdIso) : null,
   };
 
-  console.log('[v0] updateTaskTimes request:', {
-    url: `/api/v1/tasks/${taskInstanceId}/times`,
-    body,
-    startTime,
-    endTime,
-    stdIso,
-  });
-
   try {
     const response = await FlightsHttpClient.patch<UpdateTaskTimesResponse>(
       `/api/v1/tasks/${taskInstanceId}/times`,
       body,
     );
-    console.log('[v0] updateTaskTimes success:', response.data);
     return response.data;
   } catch (error) {
     log422Details('updateTaskTimes', error);
