@@ -73,8 +73,25 @@ const buildIso = (
 
   // Normalise input: strip non-digits, extract HH and mm.
   const digits = timeHhmm.replace(/\D/g, '');
-  const hh = Number(digits.slice(0, 2)) || 0;
-  const mm = Number(digits.slice(2, 4)) || 0;
+  let hh = Number(digits.slice(0, 2)) || 0;
+  let mm = Number(digits.slice(2, 4)) || 0;
+  
+  // Validate and normalize hours/minutes
+  // If hours >= 24, roll over to next day
+  let dayOffset = 0;
+  if (hh >= 24) {
+    dayOffset = Math.floor(hh / 24);
+    hh = hh % 24;
+  }
+  if (mm >= 60) {
+    hh += Math.floor(mm / 60);
+    mm = mm % 60;
+    if (hh >= 24) {
+      dayOffset += Math.floor(hh / 24);
+      hh = hh % 24;
+    }
+  }
+  
   const timePart = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:00`;
 
   // Parse reference date.  Accept full ISO strings ("2026-04-01T23:32:00-03:00")
@@ -84,9 +101,10 @@ const buildIso = (
     ? new Date(`${refDateStr}T00:00:00`)
     : now;
 
-  // Build three candidate Date objects centered on the reference day.
+  // Build three candidate Date objects centered on the reference day,
+  // plus an additional candidate if we have a dayOffset from hour rollover.
   const candidates: Date[] = [-1, 0, 1].map((offset) => {
-    const d = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate() + offset, hh, mm, 0, 0);
+    const d = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate() + offset + dayOffset, hh, mm, 0, 0);
     return d;
   });
 
@@ -136,18 +154,11 @@ export const startTask = async (
     started_by: 'operador',
     notas: 'Inicio manual por operador',
   };
-  console.log('[v0] startTask request:', { endpoint: `/api/v1/tasks/${taskInstanceId}/start`, body });
-  try {
-    const result = await flightsHttpPost<TaskEventResponse>(
-      `/api/v1/tasks/${taskInstanceId}/start`,
-      body,
-    );
-    console.log('[v0] startTask response:', result);
-    return result;
-  } catch (error) {
-    console.error('[v0] startTask error:', error);
-    throw error;
-  }
+  const result = await flightsHttpPost<TaskEventResponse>(
+    `/api/v1/tasks/${taskInstanceId}/start`,
+    body,
+  );
+  return result;
 };
 
 /**
@@ -165,18 +176,11 @@ export const finishTask = async (
     finished_by: 'operador',
     notas: 'Tarea completada sin novedades',
   };
-  console.log('[v0] finishTask request:', { endpoint: `/api/v1/tasks/${taskInstanceId}/finish`, body });
-  try {
-    const result = await flightsHttpPost<TaskEventResponse>(
-      `/api/v1/tasks/${taskInstanceId}/finish`,
-      body,
-    );
-    console.log('[v0] finishTask response:', result);
-    return result;
-  } catch (error) {
-    console.error('[v0] finishTask error:', error);
-    throw error;
-  }
+  const result = await flightsHttpPost<TaskEventResponse>(
+    `/api/v1/tasks/${taskInstanceId}/finish`,
+    body,
+  );
+  return result;
 };
 
 /**
@@ -195,18 +199,11 @@ export const updateTaskTimes = async (
     actualStart: startTime ? buildIso(startTime, stdIso) : null,
     actualEnd:   endTime   ? buildIso(endTime,   stdIso) : null,
   };
-  console.log('[v0] updateTaskTimes request:', { endpoint: `/api/v1/tasks/${taskInstanceId}/times`, body });
-  try {
-    const response = await FlightsHttpClient.patch<UpdateTaskTimesResponse>(
-      `/api/v1/tasks/${taskInstanceId}/times`,
-      body,
-    );
-    console.log('[v0] updateTaskTimes response:', response.data);
-    return response.data;
-  } catch (error) {
-    console.error('[v0] updateTaskTimes error:', error);
-    throw error;
-  }
+  const response = await FlightsHttpClient.patch<UpdateTaskTimesResponse>(
+    `/api/v1/tasks/${taskInstanceId}/times`,
+    body,
+  );
+  return response.data;
 };
 
 export interface UpdateTaskStatusResponse {
